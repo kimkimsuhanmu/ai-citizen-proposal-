@@ -1,0 +1,19 @@
+# AI Citizen Proposal Co-Pilot - Python Package Dependencies
+
+# Flask Web Framework
+Flask==2.3.3
+Flask-CORS==4.0.0
+
+# Google Gemini AI API
+google-generativeai==0.3.2
+
+# PDF Generation
+reportlab==4.0.4
+
+# Web Crawling
+requests==2.31.0
+beautifulsoup4==4.12.2
+lxml==4.9.3
+
+# Other utilities
+python-dotenv==1.0.0

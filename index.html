@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI시민제안 비서</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 서비스 제목 -->
+        <div class="header">
+            <h1 class="service-title">AI시민제안 비서</h1>
+            <p class="guide-text">간단한 질문에 답하시면 AI가 제안서를 작성해드립니다</p>
+        </div>
+
+        <!-- 제안서 작성 폼 -->
+        <div class="proposal-form">
+            <div class="form-section">
+                <h2>📝 시민제안서 작성</h2>
+                <p class="guide-text">아래 질문에 순서대로 답변해주시면 AI가 완성도 높은 제안서를 작성해드립니다.</p>
+                
+                <form id="structuredProposalForm">
+                    <!-- 질문 1: 핵심 주제 -->
+                    <div class="form-section">
+                        <h3>1. 제안의 핵심 주제 정하기</h3>
+                        <div class="form-group">
+                            <label for="core_location">어떤 장소인가요?</label>
+                            <input type="text" id="core_location" name="core_location" placeholder="예: 시민회관, 공원, 도서관, 체육시설 등" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="core_target">무엇을 개선하고 싶으신가요? (무엇이 불편하신가요?)</label>
+                            <input type="text" id="core_target" name="core_target" placeholder="예: 주차공간, 편의시설, 안전시설, 접근성 등" required>
+                        </div>
+                    </div>
+                    
+                    <!-- 질문 2: 문제 유형 (선택사항) -->
+                    <div class="form-section">
+                        <h3>2. 문제의 핵심 원인 파악하기 <span class="optional">(선택사항)</span></h3>
+                        <div class="form-group">
+                            <label>해당 문제로 인해 가장 걱정되거나 힘든 점은 무엇인가요?</label>
+                            <div class="checkbox-group">
+                                <label><input type="checkbox" name="problem_type" value="안전"> 안전이 걱정돼요 (예: 시설 노후, 안전사고 위험)</label>
+                                <label><input type="checkbox" name="problem_type" value="불편"> 이용이 불편해요 (예: 접근성 부족, 이용시간 제한)</label>
+                                <label><input type="checkbox" name="problem_type" value="미관"> 보기에 좋지 않아요 (예: 시설 노후, 환경 정리 필요)</label>
+                                <label><input type="checkbox" name="problem_type" value="기타"> 기타</label>
+                            </div>
+                            <input type="text" id="problem_type_other" name="problem_type_other" placeholder="기타 내용을 입력하세요" style="display:none;">
+                        </div>
+                    </div>
+                    
+                    <!-- 질문 3: 불편 대상 (선택사항) -->
+                    <div class="form-section">
+                        <h3>3. 제안의 대상 특정하기 <span class="optional">(선택사항)</span></h3>
+                        <div class="form-group">
+                            <label>이 문제로 인해 주로 어떤 분들이 불편을 겪는다고 생각하세요?</label>
+                            <div class="checkbox-group">
+                                <label><input type="checkbox" name="affected_people" value="어르신들"> 어르신들</label>
+                                <label><input type="checkbox" name="affected_people" value="어린이들"> 어린이들</label>
+                                <label><input type="checkbox" name="affected_people" value="장애인 등 교통약자"> 장애인 등 교통약자</label>
+                                <label><input type="checkbox" name="affected_people" value="모든 시민"> 모든 시민</label>
+                                <label><input type="checkbox" name="affected_people" value="기타"> 기타</label>
+                            </div>
+                            <input type="text" id="affected_people_other" name="affected_people_other" placeholder="기타 내용을 입력하세요" style="display:none;">
+                        </div>
+                    </div>
+                    
+                    <!-- 질문 4: 해결 방안 -->
+                    <div class="form-section">
+                        <h3>4. 해결 방안 구체화하기</h3>
+                        <div class="form-group">
+                            <label for="solution_idea">어떻게 개선되면 좋을지 구체적인 아이디어가 있으신가요?</label>
+                            <textarea 
+                                id="solution_idea" 
+                                name="solution_idea" 
+                                placeholder="예: 주차공간을 확장해주세요 / 편의시설을 추가 설치해주세요 / 안전시설을 보강해주세요"
+                                rows="4"
+                                required
+                            ></textarea>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="generate-btn">
+                        <span class="btn-text">제안서 생성하기</span>
+                        <span class="btn-loading" style="display: none;">
+                            <svg class="spinner" width="20" height="20" viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="60" stroke-dashoffset="60">
+                                    <animate attributeName="stroke-dashoffset" dur="1s" values="60;0" repeatCount="indefinite"/>
+                                </circle>
+                            </svg>
+                            생성 중...
+                        </span>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- 결과 섹션 -->
+        <div id="result-section" class="result-section">
+            <h2 class="result-title">생성된 제안서 초안</h2>
+            <div class="ai-notice">
+                <div class="notice-icon">🤖</div>
+                <div class="notice-content">
+                    <strong>AI 생성 안내</strong><br>
+                    아래 내용은 AI가 자동으로 생성한 초안입니다. 완벽하지 않을 수 있으니<br>
+                    <strong>반드시 검토하고 수정한 후 PDF로 다운로드</strong>해주세요.
+                </div>
+            </div>
+            
+            
+            <div class="result-block">
+                <div class="result-block-title">제안명</div>
+                <textarea id="result-title" class="result-content editable" placeholder="제안명을 입력하세요"></textarea>
+            </div>
+
+            <div class="result-block">
+                <div class="result-block-title">현황 및 문제점</div>
+                <textarea id="result-problem" class="result-content editable" placeholder="현황 및 문제점을 입력하세요"></textarea>
+            </div>
+
+            <div class="result-block">
+                <div class="result-block-title">개선 방안</div>
+                <textarea id="result-solution" class="result-content editable" placeholder="개선 방안을 입력하세요"></textarea>
+            </div>
+
+            <div class="result-block">
+                <div class="result-block-title">기대 효과</div>
+                <textarea id="result-effect" class="result-content editable" placeholder="기대 효과를 입력하세요"></textarea>
+            </div>
+
+            <div class="result-block">
+                <div class="result-block-title">제안자 성명</div>
+                <input 
+                    type="text" 
+                    id="proposer_name" 
+                    class="input-text" 
+                    placeholder="제안자 성명을 입력하세요"
+                    required
+                />
+            </div>
+
+            <!-- PDF 다운로드 버튼 -->
+            <div class="download-buttons">
+                <button id="download-pdf-btn" class="download-button primary">
+                    📄 PDF로 다운로드
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
