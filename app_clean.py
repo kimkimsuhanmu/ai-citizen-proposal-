@@ -132,46 +132,64 @@ else:
 def register_korean_fonts():
     """한글 폰트 등록"""
     try:
+        # 현재 작업 디렉토리와 Flask 앱 루트 디렉토리 확인
+        cwd = os.getcwd()
+        app_root = os.path.dirname(os.path.abspath(__file__))
+        logger.info(f"현재 작업 디렉토리: {cwd}")
+        logger.info(f"앱 루트 디렉토리: {app_root}")
+        
         # 나눔고딕 폰트 경로 (여러 위치 시도)
+        # Flask 앱 루트 디렉토리 기준으로 먼저 시도
         font_paths = [
-            # 루트 디렉토리
+            # Flask 앱 루트 디렉토리 기준
+            os.path.join(app_root, 'NanumGothic.otf'),
+            os.path.join(app_root, 'NanumGothic.ttf'),
+            os.path.join(app_root, 'NanumGothicBold.otf'),
+            # 현재 작업 디렉토리 기준
+            os.path.join(cwd, 'NanumGothic.otf'),
+            os.path.join(cwd, 'NanumGothic.ttf'),
+            os.path.join(cwd, 'NanumGothicBold.otf'),
+            # 상대 경로 (현재 작업 디렉토리 기준)
             'NanumGothic.otf',
             'NanumGothic.ttf',
-            # nanum-all_new 폴더 내 나눔고딕 OTF
-            'nanum-all_new/나눔 글꼴/나눔고딕/NanumFontSetup_OTF_GOTHIC/NanumGothic.otf',
-            'nanum-all_new\\나눔 글꼴\\나눔고딕\\NanumFontSetup_OTF_GOTHIC\\NanumGothic.otf',
-            # nanum-all_new 폴더 내 나눔고딕 TTF
-            'nanum-all_new/나눔 글꼴/나눔고딕/NanumFontSetup_TTF_GOTHIC/NanumGothic.ttf',
-            'nanum-all_new\\나눔 글꼴\\나눔고딕\\NanumFontSetup_TTF_GOTHIC\\NanumGothic.ttf',
-            # Windows 시스템 폰트 (맑은 고딕)
+            'NanumGothicBold.otf',
+            # nanum-all_new 폴더 내 나눔고딕 OTF (앱 루트 기준)
+            os.path.join(app_root, 'nanum-all_new', '나눔 글꼴', '나눔고딕', 'NanumFontSetup_OTF_GOTHIC', 'NanumGothic.otf'),
+            os.path.join(app_root, 'nanum-all_new', '나눔 글꼴', '나눔고딕', 'NanumFontSetup_TTF_GOTHIC', 'NanumGothic.ttf'),
+            # Windows 시스템 폰트 (로컬 환경용)
             'C:/Windows/Fonts/malgun.ttf',
             'C:/Windows/Fonts/malgunbd.ttf',
-            # Windows 시스템 폰트 (굴림)
             'C:/Windows/Fonts/gulim.ttc',
             'C:/Windows/Fonts/gulim.ttf',
-            # Windows 시스템 폰트 (바탕)
             'C:/Windows/Fonts/batang.ttc',
             'C:/Windows/Fonts/batang.ttf',
-            # Windows 시스템 폰트 (돋움)
             'C:/Windows/Fonts/dotum.ttc',
             'C:/Windows/Fonts/dotum.ttf',
         ]
         
+        logger.info(f"폰트 검색 시작. 총 {len(font_paths)}개 경로 시도")
+        
         for font_path in font_paths:
-            if os.path.exists(font_path):
-                try:
+            try:
+                if os.path.exists(font_path):
+                    logger.info(f"폰트 파일 발견: {font_path} (존재함: {os.path.exists(font_path)})")
                     # TTFont는 .ttf와 .otf 모두 지원
                     pdfmetrics.registerFont(TTFont('Korean', font_path))
                     logger.info(f"한글 폰트 등록 성공: {font_path}")
                     return True
-                except Exception as e:
-                    logger.warning(f"폰트 등록 실패 {font_path}: {e}")
-                    continue
+                else:
+                    logger.debug(f"폰트 파일 없음: {font_path}")
+            except Exception as e:
+                logger.warning(f"폰트 등록 실패 {font_path}: {e}")
+                continue
         
         logger.warning("한글 폰트를 찾을 수 없습니다. 기본 폰트를 사용합니다.")
+        logger.warning(f"시도한 경로들: {font_paths[:5]}... (총 {len(font_paths)}개)")
         return False
     except Exception as e:
         logger.error(f"폰트 등록 중 오류: {e}")
+        import traceback
+        logger.error(f"상세 오류: {traceback.format_exc()}")
         return False
 
         # 폰트 등록 실행
