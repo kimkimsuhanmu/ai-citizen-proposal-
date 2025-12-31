@@ -38,8 +38,10 @@ Thumbs.db
 # Logs
 *.log
 
-# Generated PDFs
+# Generated PDFs (하지만 폰트 파일은 포함)
 *.pdf
+!NanumGothic*.otf
+!NanumGothic*.ttf
 
 # Environment variables
 .env

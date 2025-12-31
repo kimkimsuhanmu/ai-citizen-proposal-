@@ -132,21 +132,36 @@ else:
 def register_korean_fonts():
     """한글 폰트 등록"""
     try:
-        # 나눔고딕 폰트 경로 (루트 디렉토리)
+        # 나눔고딕 폰트 경로 (여러 위치 시도)
         font_paths = [
+            # 루트 디렉토리
             'NanumGothic.otf',
-            'NanumGothicBold.otf', 
-            'NanumGothicExtraBold.otf',
-            'NanumGothicLight.otf'
+            'NanumGothic.ttf',
+            # nanum-all_new 폴더 내 나눔고딕 OTF
+            'nanum-all_new/나눔 글꼴/나눔고딕/NanumFontSetup_OTF_GOTHIC/NanumGothic.otf',
+            'nanum-all_new\\나눔 글꼴\\나눔고딕\\NanumFontSetup_OTF_GOTHIC\\NanumGothic.otf',
+            # nanum-all_new 폴더 내 나눔고딕 TTF
+            'nanum-all_new/나눔 글꼴/나눔고딕/NanumFontSetup_TTF_GOTHIC/NanumGothic.ttf',
+            'nanum-all_new\\나눔 글꼴\\나눔고딕\\NanumFontSetup_TTF_GOTHIC\\NanumGothic.ttf',
+            # Windows 시스템 폰트 (맑은 고딕)
+            'C:/Windows/Fonts/malgun.ttf',
+            'C:/Windows/Fonts/malgunbd.ttf',
+            # Windows 시스템 폰트 (굴림)
+            'C:/Windows/Fonts/gulim.ttc',
+            'C:/Windows/Fonts/gulim.ttf',
+            # Windows 시스템 폰트 (바탕)
+            'C:/Windows/Fonts/batang.ttc',
+            'C:/Windows/Fonts/batang.ttf',
+            # Windows 시스템 폰트 (돋움)
+            'C:/Windows/Fonts/dotum.ttc',
+            'C:/Windows/Fonts/dotum.ttf',
         ]
         
         for font_path in font_paths:
             if os.path.exists(font_path):
                 try:
-                    if font_path.endswith('.ttf'):
-                        pdfmetrics.registerFont(TTFont('Korean', font_path))
-                    else:  # .ttc 파일
-                        pdfmetrics.registerFont(TTFont('Korean', font_path))
+                    # TTFont는 .ttf와 .otf 모두 지원
+                    pdfmetrics.registerFont(TTFont('Korean', font_path))
                     logger.info(f"한글 폰트 등록 성공: {font_path}")
                     return True
                 except Exception as e:
