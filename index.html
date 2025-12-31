@@ -26,7 +26,7 @@
                         <h3>1. 제안의 핵심 주제 정하기</h3>
                         <div class="form-group">
                             <label for="core_location">어떤 장소인가요?</label>
-                            <input type="text" id="core_location" name="core_location" placeholder="예: 시민회관, 공원, 도서관, 체육시설 등" required>
+                            <input type="text" id="core_location" name="core_location" placeholder="예: 시민회관, 공원, 공영주차장, 체육시설 등" required>
                         </div>
                         <div class="form-group">
                             <label for="core_target">무엇을 개선하고 싶으신가요? (무엇이 불편하신가요?)</label>
@@ -91,6 +91,11 @@
                             생성 중...
                         </span>
                     </button>
+                    
+                    <!-- 로딩 메시지 영역 -->
+                    <div id="loading-message" class="loading-message" style="display: none;">
+                        <p class="loading-text"></p>
+                    </div>
                 </form>
             </div>
         </div>

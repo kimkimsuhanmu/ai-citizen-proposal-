@@ -14,6 +14,7 @@ import re
 import json
 import logging
 import time
+import threading
 from datetime import datetime
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
@@ -1418,16 +1419,21 @@ def download_pdf():
         # PDF 파일 생성
         filepath = create_pdf_file(title, problem, solution, effect, proposer_name)
         
-        # 파일 전송 (전송 후 자동 삭제를 위해 after_this_request 사용)
-        @request.after_this_request
-        def remove_file(response):
+        # 파일 전송 후 백그라운드에서 삭제하는 함수
+        def remove_file_after_delay(filepath, delay=5):
+            """파일 전송 완료 후 일정 시간 후 파일 삭제"""
+            time.sleep(delay)
             try:
                 if os.path.exists(filepath):
                     os.remove(filepath)
                     logger.info(f"임시 PDF 파일 삭제 완료: {filepath}")
             except Exception as e:
                 logger.warning(f"임시 PDF 파일 삭제 실패: {e}")
-            return response
+        
+        # 백그라운드 스레드에서 파일 삭제 실행
+        cleanup_thread = threading.Thread(target=remove_file_after_delay, args=(filepath, 5))
+        cleanup_thread.daemon = True
+        cleanup_thread.start()
         
         # 파일 전송
         return send_file(filepath, as_attachment=True, download_name=os.path.basename(filepath))

@@ -9,6 +9,8 @@ const proposerNameInput = document.getElementById('proposer_name');
 const generateBtn = document.querySelector('.generate-btn');
 const btnText = document.querySelector('.btn-text');
 const btnLoading = document.querySelector('.btn-loading');
+const loadingMessage = document.getElementById('loading-message');
+const loadingText = loadingMessage ? loadingMessage.querySelector('.loading-text') : null;
 
 // 결과 섹션 요소들
 const resultSection = document.getElementById('result-section');
@@ -136,16 +138,60 @@ function displayStructuredResults(proposal) {
     resultSection.scrollIntoView({ behavior: 'smooth' });
 }
 
+// 로딩 메시지 배열
+const loadingMessages = [
+    "좋은 의견 주셔서 감사합니다",
+    "인공지능이 소중한 시민 의견을 분석중입니다",
+    "잠시만 기다려주세요",
+    "시민 의견을 제안서로 다듬는 중입니다",
+    "곧 변환이 완료됩니다"
+];
+
+// 로딩 메시지 전환 관리
+let loadingMessageInterval = null;
+let currentMessageIndex = 0;
+
+// 로딩 메시지 시작
+function startLoadingMessages() {
+    if (!loadingMessage || !loadingText) return;
+    
+    loadingMessage.style.display = 'block';
+    currentMessageIndex = 0;
+    loadingText.textContent = loadingMessages[currentMessageIndex];
+    
+    // 2.5초마다 메시지 전환
+    loadingMessageInterval = setInterval(() => {
+        currentMessageIndex = (currentMessageIndex + 1) % loadingMessages.length;
+        loadingText.textContent = loadingMessages[currentMessageIndex];
+    }, 2500);
+}
+
+// 로딩 메시지 중지
+function stopLoadingMessages() {
+    if (loadingMessageInterval) {
+        clearInterval(loadingMessageInterval);
+        loadingMessageInterval = null;
+    }
+    if (loadingMessage) {
+        loadingMessage.style.display = 'none';
+    }
+    if (loadingText) {
+        loadingText.textContent = '';
+    }
+}
+
 // 로딩 상태 설정
 function setLoading(loading) {
     if (loading) {
         generateBtn.disabled = true;
         btnText.style.display = 'none';
         btnLoading.style.display = 'flex';
+        startLoadingMessages();
     } else {
         generateBtn.disabled = false;
         btnText.style.display = 'block';
         btnLoading.style.display = 'none';
+        stopLoadingMessages();
     }
 }
 
