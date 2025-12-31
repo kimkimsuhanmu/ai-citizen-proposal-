@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: ai-citizen-proposal
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app_clean.py
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+    healthCheckPath: /health
+
