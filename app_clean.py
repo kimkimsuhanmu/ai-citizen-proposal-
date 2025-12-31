@@ -50,19 +50,33 @@ if GEMINI_API_KEY == "your_actual_gemini_api_key_here" or not GEMINI_API_KEY:
 if GEMINI_API_KEY != "demo_key_for_testing":
     try:
         genai.configure(api_key=GEMINI_API_KEY)
-        # 최신 API에서는 모델 이름이 다를 수 있으므로 여러 옵션 시도
-        model_names = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-pro', 'gemini-1.5-pro']
+        # 사용 가능한 모델 이름 시도 (우선순위 순)
+        # gemini-pro가 가장 안정적이고 널리 지원됨
+        model_names = ['gemini-pro', 'gemini-1.5-pro', 'gemini-1.5-flash-latest', 'gemini-1.5-flash']
         model = None
+        successful_model = None
+        
         for model_name in model_names:
             try:
-                model = genai.GenerativeModel(model_name)
-                logger.info(f"Gemini API가 성공적으로 설정되었습니다. 모델: {model_name}")
-                break
+                # 모델 초기화 시도
+                test_model = genai.GenerativeModel(model_name)
+                # 실제 API 호출 테스트 (간단한 테스트)
+                try:
+                    test_model.generate_content("test")
+                    model = test_model
+                    successful_model = model_name
+                    logger.info(f"Gemini API가 성공적으로 설정되었습니다. 모델: {model_name}")
+                    break
+                except Exception as api_error:
+                    # 모델은 초기화되었지만 API 호출 실패
+                    logger.warning(f"모델 {model_name} API 호출 실패: {api_error}")
+                    continue
             except Exception as e:
                 logger.warning(f"모델 {model_name} 초기화 실패: {e}")
                 continue
         
         if model is None:
+            logger.error("사용 가능한 Gemini 모델을 찾을 수 없습니다. 모든 모델 시도 실패")
             raise Exception("사용 가능한 Gemini 모델을 찾을 수 없습니다")
     except Exception as e:
         logger.error(f"Gemini API 설정 오류: {e}")
@@ -273,20 +287,32 @@ def refine_user_input(core_location, core_target, problem_type, affected_people,
         
         # AI 모델 초기화 (API 키가 있으면 항상 시도)
         try:
-            # 최신 API에서는 모델 이름이 다를 수 있으므로 여러 옵션 시도
-            model_names = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-pro', 'gemini-1.5-pro']
-            ai_model = None
-            for model_name in model_names:
-                try:
-                    ai_model = genai.GenerativeModel(model_name)
-                    logger.info(f"입력 정제를 위한 Gemini 모델 초기화 완료: {model_name}")
-                    break
-                except Exception as e:
-                    logger.warning(f"모델 {model_name} 초기화 실패: {e}")
-                    continue
-            
-            if ai_model is None:
-                raise Exception("사용 가능한 Gemini 모델을 찾을 수 없습니다")
+            # 전역 model이 있으면 재사용, 없으면 새로 생성
+            if model is not None:
+                ai_model = model
+                logger.info("전역 Gemini 모델 재사용")
+            else:
+                # 전역 model이 없으면 새로 생성 시도
+                model_names = ['gemini-pro', 'gemini-1.5-pro', 'gemini-1.5-flash-latest', 'gemini-1.5-flash']
+                ai_model = None
+                for model_name in model_names:
+                    try:
+                        test_model = genai.GenerativeModel(model_name)
+                        # 간단한 테스트 호출
+                        try:
+                            test_model.generate_content("test")
+                            ai_model = test_model
+                            logger.info(f"입력 정제를 위한 Gemini 모델 초기화 완료: {model_name}")
+                            break
+                        except Exception as api_error:
+                            logger.warning(f"모델 {model_name} API 호출 실패: {api_error}")
+                            continue
+                    except Exception as e:
+                        logger.warning(f"모델 {model_name} 초기화 실패: {e}")
+                        continue
+                
+                if ai_model is None:
+                    raise Exception("사용 가능한 Gemini 모델을 찾을 수 없습니다")
         except Exception as e:
             logger.error(f"Gemini 모델 초기화 실패: {e}")
             return {
@@ -297,11 +323,8 @@ def refine_user_input(core_location, core_target, problem_type, affected_people,
                 'success': False
             }
         
-        # 입력 정제 프롬프트 구성 (개선된 버전)
-        refine_prompt = f"""당신은 시민제안서 작성을 돕는 전문 AI 어시스턴트입니다.
-
-[임무]
-사용자가 입력한 구어체나 단편적인 내용을 공공기관 제안서에 적합한 자연스럽고 전문적인 문장으로 완전히 변환하세요.
+        # 입력 정제 프롬프트 구성 (대폭 개선된 버전)
+        refine_prompt = f"""당신은 시민제안서 작성을 돕는 전문 AI 어시스턴트입니다. 시민이 입력한 구어체나 단편적인 내용을 공공기관 제안서에 적합한 자연스럽고 전문적이며 풍부한 내용으로 완전히 변환하는 것이 당신의 임무입니다.
 
 [사용자 원본 입력]
 - 장소: {core_location}
@@ -310,48 +333,54 @@ def refine_user_input(core_location, core_target, problem_type, affected_people,
 - 불편 대상: {affected_people if affected_people else '명시되지 않음'}
 - 해결책: {solution_idea}
 
-[변환 원칙]
-1. **구어체 완전 제거**: 모든 구어체 표현을 정중한 문어체로 변환
-   - "벤치가 낡았어요" → "벤치가 노후화되어"
-   - "삐그덕거리고" → "불안정하고"
-   - "보기에 안좋고" → "미관상 좋지 않고"
-   - "위험해 보임" → "안전상 위험할 수 있어"
+[핵심 임무]
+1. **구어체 완전 제거 및 자연스러운 변환**
+   - 모든 구어체("~어요", "~해요", "~요함", "~주세요" 등)를 완전히 제거
+   - 자연스럽고 전문적인 문어체로 변환
+   - 예: "벤치가 낡았어요" → "벤치가 노후화되어"
+   - 예: "삐그덕거리고" → "불안정한 상태이며"
+   - 예: "보기에 안좋고" → "미관상 좋지 않고"
+   - 예: "위험해 보임" → "안전상 위험할 수 있어"
 
-2. **단편적 표현 완전 확장**: 불완전한 문장을 완전한 문장으로 변환
-   - "벤치교체 요함" → "기존 노후 벤치를 새로운 벤치로 교체할 것을 제안합니다"
-   - "새로 바꿔주세요" → "기존 시설을 새로운 것으로 교체해 주실 것을 제안합니다"
+2. **내용을 풍부하고 구체적으로 확장**
+   - 단편적인 표현을 완전한 문장으로 확장
+   - 문제의 원인, 영향, 필요성을 자연스럽게 서술
+   - 구체적이고 설득력 있는 설명 추가
+   - 예: "벤치교체 요함" → "기존 노후 벤치가 이용객의 안전을 위협하고 있어, 새로운 벤치로 교체할 것을 제안합니다"
 
-3. **핵심 정보 보존**: 장소명, 대상, 요청사항은 절대 변경하지 않음
-   - "{core_location}"는 그대로 유지
+3. **핵심 정보 절대 보존**
+   - 장소명 "{core_location}"는 반드시 그대로 유지
    - 문제 대상의 핵심은 유지하되 표현만 정제
+   - 사용자의 의도를 절대 변경하지 않음
 
-4. **자연스러운 문장 구성**: 읽기 쉽고 논리적인 문장으로 작성
-   - 문장을 2-3개로 나누어 명확하게 서술
+4. **자연스럽고 논리적인 문장 구성**
+   - 2-3문장으로 구성하여 읽기 쉽게 작성
    - 원인-결과 관계를 자연스럽게 연결
+   - 문장 간 논리적 흐름 유지
 
-5. **공공기관 어조**: 정중하고 전문적인 표현 사용
+5. **공공기관 제안서에 적합한 전문적 어조**
+   - 정중하고 공식적인 표현 사용
    - "~해 주세요" → "~해 주실 것을 제안합니다"
    - "~요함" → "~할 것을 제안합니다"
-
-6. **불필요한 표현 제거**: 감정적 표현, 과장된 표현 제거
-   - "매우", "정말", "너무" 등의 강조 표현 최소화
+   - 감정적 표현이나 과장된 표현 제거
 
 [구체적 변환 예시]
 입력: "놀이터 근처 벤치가 삐그덕거리고 노후돼서 보기에 안좋고 위험해 보임, 벤치교체 요함"
-출력: "태산패밀리파크 놀이터 근처에 설치된 벤치가 노후화되어 불안정한 상태이며, 미관상 좋지 않고 안전상 위험할 수 있습니다. 따라서 기존 노후 벤치를 새로운 벤치로 교체할 것을 제안합니다."
+출력: "태산패밀리파크 놀이터 근처에 설치된 벤치가 장기간 사용으로 인해 노후화되어 불안정한 상태입니다. 이러한 노후 벤치는 이용객의 안전을 위협할 수 있으며, 공원의 전반적인 미관에도 좋지 않은 영향을 미치고 있습니다. 따라서 기존 노후 벤치를 안전하고 내구성이 우수한 새로운 벤치로 교체할 것을 제안합니다."
 
 [출력 형식]
-다음 JSON 형식으로만 출력하세요:
+다음 JSON 형식으로만 출력하세요. 다른 설명이나 텍스트는 포함하지 마세요:
 {{
-    "refined_location": "정제된 장소명",
-    "refined_target": "정제된 문제 대상 (구어체 완전 제거)",
-    "refined_problem_description": "문제 상황을 자연스럽고 전문적인 문장으로 설명 (2-3문장, 구어체 없음)",
-    "refined_solution": "해결책을 자연스럽고 전문적인 문장으로 설명 (1-2문장, 구어체 없음)"
+    "refined_location": "정제된 장소명 (원본과 동일)",
+    "refined_target": "정제된 문제 대상 (구어체 완전 제거, 자연스러운 표현으로 변환)",
+    "refined_problem_description": "문제 상황을 자연스럽고 전문적이며 풍부한 내용으로 설명 (2-3문장, 구어체 완전 제거, 원인과 영향 포함)",
+    "refined_solution": "해결책을 자연스럽고 전문적이며 구체적인 문장으로 설명 (1-2문장, 구어체 완전 제거, 구체적 방안 포함)"
 }}
 
-중요: 
-- JSON 형식만 출력 (마크다운, 설명 없음)
-- 모든 구어체를 완전히 제거
+중요 지침:
+- JSON 형식만 출력 (마크다운 코드 블록, 설명, 주석 없음)
+- 모든 구어체를 완전히 제거하고 자연스러운 문어체로 변환
+- 내용을 풍부하고 구체적으로 확장하되, 핵심 정보는 절대 변경하지 않음
 - 자연스럽고 읽기 쉬운 전문 문장으로 작성"""
         
         # Gemini API 호출
@@ -449,15 +478,23 @@ def generate_structured_ai_proposal(core_location, core_target, problem_type, af
         # AI 모델 초기화 (전역 model 사용 또는 새로 생성)
         if model is not None:
             ai_model = model
+            logger.info("제안서 생성을 위해 전역 Gemini 모델 재사용")
         else:
             # 전역 model이 없으면 새로 생성 시도
-            model_names = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-pro', 'gemini-1.5-pro']
+            model_names = ['gemini-pro', 'gemini-1.5-pro', 'gemini-1.5-flash-latest', 'gemini-1.5-flash']
             ai_model = None
             for model_name in model_names:
                 try:
-                    ai_model = genai.GenerativeModel(model_name)
-                    logger.info(f"제안서 생성을 위한 Gemini 모델 초기화: {model_name}")
-                    break
+                    test_model = genai.GenerativeModel(model_name)
+                    # 간단한 테스트 호출
+                    try:
+                        test_model.generate_content("test")
+                        ai_model = test_model
+                        logger.info(f"제안서 생성을 위한 Gemini 모델 초기화: {model_name}")
+                        break
+                    except Exception as api_error:
+                        logger.warning(f"모델 {model_name} API 호출 실패: {api_error}")
+                        continue
                 except Exception as e:
                     logger.warning(f"모델 {model_name} 초기화 실패: {e}")
                     continue
@@ -497,40 +534,58 @@ def generate_structured_ai_proposal(core_location, core_target, problem_type, af
 - 예시: "태산패밀리파크 놀이터 주변 휴게시설 교체 제안"
 
 ## 2. 현행상의 문제점
-**중요**: 일반적인 표현("문제가 지속적으로 제기되고 있습니다")을 절대 사용하지 마세요.
+**절대 금지**: "문제가 지속적으로 제기되고 있습니다" 같은 일반적이고 추상적인 표현을 절대 사용하지 마세요.
 
-다음 내용을 바탕으로 구체적이고 자연스러운 문장으로 작성:
-- 정제된 문제 상황: {use_problem_desc}
-{f"- 문제 유형 '{problem_type}' 관점에서 구체적으로 서술" if problem_type else ""}
-{f"- 불편 대상 '{affected_people}'의 관점에서 구체적으로 서술" if affected_people else ""}
+**작성 원칙**:
+1. 정제된 문제 상황을 바탕으로 하되, 더 구체적이고 풍부하게 확장
+2. 문제의 원인, 현상, 영향, 필요성을 자연스럽게 서술
+3. 장소와 대상의 구체적 정보를 반드시 포함
+4. 읽는 사람이 문제 상황을 명확히 이해할 수 있도록 작성
+
+**정제된 문제 상황 (참고)**:
+{use_problem_desc}
+
+{f"**문제 유형 '{problem_type}' 관점에서**: " if problem_type else ""}
+{f"이 문제는 '{problem_type}' 측면에서 다음과 같은 구체적 문제를 야기하고 있습니다. " if problem_type else ""}
+
+{f"**불편 대상 '{affected_people}' 관점에서**: " if affected_people else ""}
+{f"'{affected_people}'에게 특히 불편함을 주고 있으며, " if affected_people else ""}
 
 **작성 예시 (참고용)**:
-- 좋은 예: "{use_location} 놀이터 근처에 설치된 벤치가 노후화되어 불안정한 상태이며, 이용객의 안전을 위협할 수 있습니다. 또한 시설의 노후로 인해 미관상 좋지 않아 공원의 전반적인 이미지에도 영향을 미치고 있습니다."
-- 나쁜 예: "{use_location}의 벤치 개선에 대한 문제가 지속적으로 제기되고 있습니다."
+- 좋은 예: "{use_location} 놀이터 근처에 설치된 벤치가 장기간 사용으로 인해 노후화되어 불안정한 상태입니다. 이러한 노후 벤치는 이용객, 특히 어린이와 어르신의 안전을 위협할 수 있으며, 공원을 방문하는 시민들의 우려를 불러일으키고 있습니다. 또한 시설의 노후로 인해 미관상 좋지 않아 공원의 전반적인 이미지에도 부정적인 영향을 미치고 있습니다."
+- 나쁜 예: "{use_location}의 벤치 개선에 대한 문제가 지속적으로 제기되고 있습니다." (절대 사용 금지)
 
 **요구사항**:
-- 2-3문장으로 구체적이고 자연스럽게 작성
-- 문제의 원인과 결과를 논리적으로 연결
-- 장소와 대상의 구체적 정보를 포함
-- 일반적이거나 추상적인 표현 지양
+- 3-4문장으로 구체적이고 풍부하게 작성
+- 문제의 원인(노후화, 부족 등)을 명시
+- 문제의 영향(안전, 편의, 미관 등)을 구체적으로 서술
+- 장소({use_location})와 대상({use_target})의 구체적 정보를 포함
+- 일반적이거나 추상적인 표현 완전 금지
 
 ## 3. 개선 안
-**중요**: 정제된 해결책의 내용을 그대로 복사하지 말고, 자연스럽게 재구성하세요.
+**절대 금지**: 정제된 해결책의 내용을 그대로 복사-붙여넣기하지 마세요. 반드시 자연스럽게 재구성하고 풍부하게 확장하세요.
 
-다음 내용을 바탕으로 작성:
-- 정제된 해결책: {use_solution}
+**정제된 해결책 (참고용)**:
+{use_solution}
+
+**작성 원칙**:
+1. 정제된 해결책의 핵심 의도를 파악하여 자연스럽게 재구성
+2. 구체적이고 실행 가능한 방안으로 확장
+3. 김포도시공사의 업무 범위와 역할을 고려
+4. 현실적이고 실현 가능한 내용으로 작성
 
 **작성 형식**:
-"김포도시공사에서 [구체적 개선 방안]을 추진해 주실 것을 제안합니다."
+"김포도시공사에서 [구체적이고 상세한 개선 방안]을 추진해 주실 것을 제안합니다."
 
 **작성 예시 (참고용)**:
-- 좋은 예: "김포도시공사에서 {use_location} 놀이터 근처의 노후 벤치를 안전하고 내구성이 우수한 새로운 벤치로 교체해 주실 것을 제안합니다."
-- 나쁜 예: "김포도시공사에서 {use_solution}을 추진해 주실 것을 제안합니다." (정제된 내용을 그대로 사용)
+- 좋은 예: "김포도시공사에서 {use_location} 놀이터 근처의 노후 벤치를 안전하고 내구성이 우수한 새로운 벤치로 교체해 주실 것을 제안합니다. 이를 통해 이용객의 안전을 확보하고, 공원의 전반적인 환경을 개선할 수 있을 것으로 기대합니다."
+- 나쁜 예: "김포도시공사에서 {use_solution}을 추진해 주실 것을 제안합니다." (정제된 내용을 그대로 복사 - 절대 금지)
 
 **요구사항**:
-- 정제된 해결책의 핵심을 유지하되, 자연스럽게 재구성
+- 정제된 해결책의 핵심을 유지하되, 자연스럽고 풍부하게 재구성
+- 구체적이고 실행 가능한 방안으로 확장
 - 김포도시공사의 업무 범위를 고려한 현실적 방안
-- 구체적이고 실행 가능한 내용으로 작성
+- 1-2문장으로 간결하면서도 구체적으로 작성
 
 ## 4. 기대 효과
 {use_location}의 {use_target} 개선을 통한 구체적인 기대 효과를 다음 관점에서 서술:
@@ -665,21 +720,32 @@ def generate_ai_proposal(problem, solution):
         location_elements = extract_key_elements(problem, solution)
         location_context = get_location_context(location_elements['location'])
         
-        # 2단계: AI 모델 초기화
-        # 여러 모델 이름 시도
-        model_names = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-pro', 'gemini-1.5-pro']
-        model = None
-        for model_name in model_names:
-            try:
-                model = genai.GenerativeModel(model_name)
-                logger.info(f"Gemini 모델 초기화 성공: {model_name}")
-                break
-            except Exception as e:
-                logger.warning(f"모델 {model_name} 초기화 실패: {e}")
-                continue
-        
-        if model is None:
-            raise Exception("사용 가능한 Gemini 모델을 찾을 수 없습니다")
+        # 2단계: AI 모델 초기화 (전역 model 사용 또는 새로 생성)
+        if model is not None:
+            ai_model = model
+            logger.info("제안서 생성을 위해 전역 Gemini 모델 재사용")
+        else:
+            # 전역 model이 없으면 새로 생성 시도
+            model_names = ['gemini-pro', 'gemini-1.5-pro', 'gemini-1.5-flash-latest', 'gemini-1.5-flash']
+            ai_model = None
+            for model_name in model_names:
+                try:
+                    test_model = genai.GenerativeModel(model_name)
+                    # 간단한 테스트 호출
+                    try:
+                        test_model.generate_content("test")
+                        ai_model = test_model
+                        logger.info(f"제안서 생성을 위한 Gemini 모델 초기화: {model_name}")
+                        break
+                    except Exception as api_error:
+                        logger.warning(f"모델 {model_name} API 호출 실패: {api_error}")
+                        continue
+                except Exception as e:
+                    logger.warning(f"모델 {model_name} 초기화 실패: {e}")
+                    continue
+            
+            if ai_model is None:
+                raise Exception("사용 가능한 Gemini 모델을 찾을 수 없습니다")
         
         # 3단계: 마스터 프롬프트 구성
         prompt = f"""
