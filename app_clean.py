@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 AI시민제안 비서 - Flask 백엔드 서버
-김포도시관리공사 프로토타입
+김포도시공사 프로토타입
 
 주요 기능:
 1. Google Gemini API를 통한 제안서 텍스트 생성
@@ -94,8 +94,8 @@ def register_korean_fonts():
 register_korean_fonts()
 
 def crawl_gimpo_facilities():
-    """김포도시관리공사 홈페이지 크롤링 (시뮬레이션)"""
-    logger.info("김포도시관리공사 홈페이지 크롤링 시작...")
+    """김포도시공사 홈페이지 크롤링 (시뮬레이션)"""
+    logger.info("김포도시공사 홈페이지 크롤링 시작...")
     
     try:
         # 실제 크롤링 로직 (현재는 시뮬레이션)
@@ -273,11 +273,11 @@ def refine_user_input(core_location, core_target, problem_type, affected_people,
                 'success': False
             }
         
-        # 입력 정제 프롬프트 구성
-        refine_prompt = f"""당신은 시민제안서 작성을 돕는 AI 어시스턴트입니다.
+        # 입력 정제 프롬프트 구성 (개선된 버전)
+        refine_prompt = f"""당신은 시민제안서 작성을 돕는 전문 AI 어시스턴트입니다.
 
 [임무]
-사용자가 입력한 내용을 자연스럽고 전문적인 문장으로 변환하되, 핵심 정보는 절대 변경하지 마세요.
+사용자가 입력한 구어체나 단편적인 내용을 공공기관 제안서에 적합한 자연스럽고 전문적인 문장으로 완전히 변환하세요.
 
 [사용자 원본 입력]
 - 장소: {core_location}
@@ -286,24 +286,49 @@ def refine_user_input(core_location, core_target, problem_type, affected_people,
 - 불편 대상: {affected_people if affected_people else '명시되지 않음'}
 - 해결책: {solution_idea}
 
-[변환 지침]
-1. 구어체를 정중한 문체로 변환 (예: "벤치가 낡았어요" → "낡은 벤치")
-2. 단편적인 표현을 완전한 문장으로 확장 (예: "새로 바꿔주세요" → "기존 시설을 새로운 것으로 교체하는 것을 제안합니다")
-3. 핵심 정보(장소명, 대상, 요청사항)는 절대 변경하지 않음
-4. 자연스럽고 읽기 쉬운 문장으로 작성
-5. 공공기관 제안서에 적합한 정중한 어조 유지
-6. 불필요한 감정 표현이나 과장된 표현은 제거
+[변환 원칙]
+1. **구어체 완전 제거**: 모든 구어체 표현을 정중한 문어체로 변환
+   - "벤치가 낡았어요" → "벤치가 노후화되어"
+   - "삐그덕거리고" → "불안정하고"
+   - "보기에 안좋고" → "미관상 좋지 않고"
+   - "위험해 보임" → "안전상 위험할 수 있어"
+
+2. **단편적 표현 완전 확장**: 불완전한 문장을 완전한 문장으로 변환
+   - "벤치교체 요함" → "기존 노후 벤치를 새로운 벤치로 교체할 것을 제안합니다"
+   - "새로 바꿔주세요" → "기존 시설을 새로운 것으로 교체해 주실 것을 제안합니다"
+
+3. **핵심 정보 보존**: 장소명, 대상, 요청사항은 절대 변경하지 않음
+   - "{core_location}"는 그대로 유지
+   - 문제 대상의 핵심은 유지하되 표현만 정제
+
+4. **자연스러운 문장 구성**: 읽기 쉽고 논리적인 문장으로 작성
+   - 문장을 2-3개로 나누어 명확하게 서술
+   - 원인-결과 관계를 자연스럽게 연결
+
+5. **공공기관 어조**: 정중하고 전문적인 표현 사용
+   - "~해 주세요" → "~해 주실 것을 제안합니다"
+   - "~요함" → "~할 것을 제안합니다"
+
+6. **불필요한 표현 제거**: 감정적 표현, 과장된 표현 제거
+   - "매우", "정말", "너무" 등의 강조 표현 최소화
+
+[구체적 변환 예시]
+입력: "놀이터 근처 벤치가 삐그덕거리고 노후돼서 보기에 안좋고 위험해 보임, 벤치교체 요함"
+출력: "태산패밀리파크 놀이터 근처에 설치된 벤치가 노후화되어 불안정한 상태이며, 미관상 좋지 않고 안전상 위험할 수 있습니다. 따라서 기존 노후 벤치를 새로운 벤치로 교체할 것을 제안합니다."
 
 [출력 형식]
-다음 JSON 형식으로만 출력하세요. 다른 설명이나 텍스트는 포함하지 마세요:
+다음 JSON 형식으로만 출력하세요:
 {{
-    "refined_location": "정제된 장소명 (원본과 동일하거나 약간만 정제)",
-    "refined_target": "정제된 문제 대상 (구어체를 문어체로 변환)",
-    "refined_problem_description": "문제 상황을 자연스러운 문장으로 설명 (2-3문장)",
-    "refined_solution": "해결책을 자연스러운 문장으로 설명 (1-2문장)"
+    "refined_location": "정제된 장소명",
+    "refined_target": "정제된 문제 대상 (구어체 완전 제거)",
+    "refined_problem_description": "문제 상황을 자연스럽고 전문적인 문장으로 설명 (2-3문장, 구어체 없음)",
+    "refined_solution": "해결책을 자연스럽고 전문적인 문장으로 설명 (1-2문장, 구어체 없음)"
 }}
 
-중요: JSON 형식만 출력하고, 다른 설명이나 마크다운 형식은 사용하지 마세요."""
+중요: 
+- JSON 형식만 출력 (마크다운, 설명 없음)
+- 모든 구어체를 완전히 제거
+- 자연스럽고 읽기 쉬운 전문 문장으로 작성"""
         
         # Gemini API 호출
         response = ai_model.generate_content(refine_prompt)
@@ -400,14 +425,14 @@ def generate_structured_ai_proposal(core_location, core_target, problem_type, af
         # AI 모델 초기화
         ai_model = genai.GenerativeModel('gemini-1.5-flash')
         
-        # 2단계: 정제된 내용 기반 제안서 생성 프롬프트 구성
+        # 2단계: 정제된 내용 기반 제안서 생성 프롬프트 구성 (개선된 버전)
         prompt = f"""
 당신은 **김포시 정책기획실장**이자 **시민제안서 검토 전문가**입니다.
 
 [최우선 원칙]
-- 사용자가 제공한 핵심 정보를 절대 변경하거나 일반화하지 마세요
-- 정제된 사용자 의견을 바탕으로 전문적인 제안서를 작성하세요
-- 새로운 내용을 추가하거나 추측하지 마세요
+- 정제된 사용자 의견의 핵심 정보를 절대 변경하거나 일반화하지 마세요
+- 구체적이고 현실적인 내용으로 작성하되, 과장하지 마세요
+- 각 섹션을 자연스럽고 읽기 쉬운 전문 문장으로 작성하세요
 
 [정제된 사용자 핵심 의견]
 - 핵심 제안 장소: {use_location}
@@ -420,45 +445,74 @@ def generate_structured_ai_proposal(core_location, core_target, problem_type, af
 [맥락 정보]
 - 제안 대상 장소: {use_location}
 - 장소 유형 및 특징: {location_context}
-- 수신 기관: 김포도시관리공사
+- 수신 기관: 김포도시공사
 
 [작성 지시]
-위의 [정제된 사용자 핵심 의견]을 바탕으로 김포도시관리공사에 제출하는 시민제안서 초안을 작성해주세요.
-[문제 상황 설명]을 참고하여 현행상의 문제점을 작성하고, [요청 해결책]을 바탕으로 개선안을 작성하세요.
+위의 [정제된 사용자 핵심 의견]을 바탕으로 김포도시공사에 제출하는 시민제안서 초안을 작성해주세요.
 
 ## 1. 제안명
-- {use_location}의 {use_target} 개선을 위한 구체적이고 명확한 제목
-- "~ 개선 제안", "~ 설치 요청", "~ 확충 제안", "~ 보강 제안" 등의 형태로 작성
-- 15-25자 내외로 간결하고 핵심을 담은 제목 작성
-- 정제된 문제 대상을 바탕으로 작성
+- {use_location}의 {use_target}과 관련된 구체적이고 명확한 제목
+- "~ 개선 제안", "~ 교체 제안", "~ 설치 요청", "~ 확충 제안", "~ 보강 제안" 등의 형태
+- 15-25자 내외로 간결하고 핵심을 담은 제목
+- 예시: "태산패밀리파크 놀이터 주변 휴게시설 교체 제안"
 
 ## 2. 현행상의 문제점
-- {use_problem_desc}를 바탕으로 작성하되, 더 구체적이고 전문적으로 확장
-- {f"문제 유형이 '{problem_type}'인 경우, 해당 관점에서 문제점을 서술" if problem_type else ""}
-- {f"주요 불편 대상이 '{affected_people}'인 경우, 해당 그룹의 관점에서 문제점을 서술" if affected_people else ""}
-- 2-3문장으로 간결하게 작성
-- 자연스럽고 읽기 쉬운 문장으로 작성
+**중요**: 일반적인 표현("문제가 지속적으로 제기되고 있습니다")을 절대 사용하지 마세요.
+
+다음 내용을 바탕으로 구체적이고 자연스러운 문장으로 작성:
+- 정제된 문제 상황: {use_problem_desc}
+{f"- 문제 유형 '{problem_type}' 관점에서 구체적으로 서술" if problem_type else ""}
+{f"- 불편 대상 '{affected_people}'의 관점에서 구체적으로 서술" if affected_people else ""}
+
+**작성 예시 (참고용)**:
+- 좋은 예: "{use_location} 놀이터 근처에 설치된 벤치가 노후화되어 불안정한 상태이며, 이용객의 안전을 위협할 수 있습니다. 또한 시설의 노후로 인해 미관상 좋지 않아 공원의 전반적인 이미지에도 영향을 미치고 있습니다."
+- 나쁜 예: "{use_location}의 벤치 개선에 대한 문제가 지속적으로 제기되고 있습니다."
+
+**요구사항**:
+- 2-3문장으로 구체적이고 자연스럽게 작성
+- 문제의 원인과 결과를 논리적으로 연결
+- 장소와 대상의 구체적 정보를 포함
+- 일반적이거나 추상적인 표현 지양
 
 ## 3. 개선 안
-- 정제된 해결책: "{use_solution}"을 바탕으로 작성
-- 김포도시관리공사에서 추진해 주실 것을 제안하는 구체적인 방안
-- "김포도시관리공사에서 ~을 추진해 주실 것을 제안합니다" 형태로 작성
-- 김포도시관리공사의 업무 범위와 역할을 고려한 현실적이고 실행 가능한 방안 제시
-- 정제된 해결책의 핵심을 유지하면서 자연스럽게 확장
+**중요**: 정제된 해결책의 내용을 그대로 복사하지 말고, 자연스럽게 재구성하세요.
 
-## 4. 효과
-- {use_location}의 {use_target} 개선을 통한 구체적인 기대 효과
-- 직접적 편익, 시설 활성화 측면, 사회적/공익적 가치로 구분하여 서술
+다음 내용을 바탕으로 작성:
+- 정제된 해결책: {use_solution}
+
+**작성 형식**:
+"김포도시공사에서 [구체적 개선 방안]을 추진해 주실 것을 제안합니다."
+
+**작성 예시 (참고용)**:
+- 좋은 예: "김포도시공사에서 {use_location} 놀이터 근처의 노후 벤치를 안전하고 내구성이 우수한 새로운 벤치로 교체해 주실 것을 제안합니다."
+- 나쁜 예: "김포도시공사에서 {use_solution}을 추진해 주실 것을 제안합니다." (정제된 내용을 그대로 사용)
+
+**요구사항**:
+- 정제된 해결책의 핵심을 유지하되, 자연스럽게 재구성
+- 김포도시공사의 업무 범위를 고려한 현실적 방안
+- 구체적이고 실행 가능한 내용으로 작성
+
+## 4. 기대 효과
+{use_location}의 {use_target} 개선을 통한 구체적인 기대 효과를 다음 관점에서 서술:
+1. 직접적 편익: 이용객의 안전과 편의 증진
+{f"2. 불편 대상 '{affected_people}'에 대한 구체적 편익" if affected_people else "2. 시설 이용객에 대한 구체적 편익"}
+3. 시설 활성화: 개선을 통한 이용률 향상
+4. 사회적 가치: 공공시설의 품질 향상
+
+**요구사항**:
+- 구체적이고 현실적인 효과 제시
+- 과장된 표현 지양
+- 2-3문장으로 간결하게 작성
 
 [금지사항 - 절대 준수]
-- {use_location}와 {use_target}을 일반화하거나 생략하는 것 금지
+- "{use_location}"와 "{use_target}"을 일반화하거나 생략하는 것 금지
+- "문제가 지속적으로 제기되고 있습니다" 같은 일반적 표현 사용 금지
+- 정제된 내용을 그대로 복사-붙여넣기하는 것 금지
 - 과장되고 추상적인 내용 작성 금지
-- 장소의 특성과 무관한 일반적인 내용 작성 금지
-- 김포시와 무관한 일반적인 내용으로 작성하는 것 금지
 - 구체적인 수치, 예산, 일정 등을 임의로 작성하는 것 금지
 - "~하겠습니다" 형태의 1인칭 표현 사용 금지
 
-위 지침에 따라 제안서를 작성해주세요.
+위 지침을 철저히 준수하여 전문적이고 자연스러운 제안서를 작성해주세요.
 """
         logger.info("2단계: 제안서 생성 시작...")
         response = ai_model.generate_content(prompt)
@@ -496,7 +550,7 @@ def generate_structured_ai_proposal(core_location, core_target, problem_type, af
         return {
             'title': title,
             'problem': f"{use_location}의 {use_target}에 대한 문제가 지속적으로 제기되고 있습니다.",
-            'solution': f"김포도시관리공사에서 {use_solution}을 추진해 주실 것을 제안합니다.",
+            'solution': f"김포도시공사에서 {use_solution}을 추진해 주실 것을 제안합니다.",
             'effect': f"{use_location}의 {use_target} 개선을 통해 시민 편의 증진과 시설 이용률 향상을 기대할 수 있습니다."
         }
 
@@ -546,7 +600,7 @@ def parse_structured_proposal(response_text, core_location, core_target, solutio
         if not sections['problem']:
             sections['problem'] = f"{core_location}의 {core_target}에 대한 문제가 지속적으로 제기되고 있습니다."
         if not sections['solution']:
-            sections['solution'] = f"김포도시관리공사에서 {solution_idea}을 추진해 주실 것을 제안합니다."
+            sections['solution'] = f"김포도시공사에서 {solution_idea}을 추진해 주실 것을 제안합니다."
         if not sections['effect']:
             sections['effect'] = f"{core_location}의 {core_target} 개선을 통해 시민 편의 증진과 시설 이용률 향상을 기대할 수 있습니다."
         
@@ -560,7 +614,7 @@ def parse_structured_proposal(response_text, core_location, core_target, solutio
         return {
             'title': title,
             'problem': f"{core_location}의 {core_target}에 대한 문제가 지속적으로 제기되고 있습니다.",
-            'solution': f"김포도시관리공사에서 {solution_idea}을 추진해 주실 것을 제안합니다.",
+            'solution': f"김포도시공사에서 {solution_idea}을 추진해 주실 것을 제안합니다.",
             'effect': f"{core_location}의 {core_target} 개선을 통해 시민 편의 증진과 시설 이용률 향상을 기대할 수 있습니다."
         }
 
@@ -592,10 +646,10 @@ def generate_ai_proposal(problem, solution):
 [맥락 정보]
 - 제안 대상 장소: {location_elements['location']}
 - 장소 유형 및 특징: {location_context}
-- 수신 기관: 김포도시관리공사
+- 수신 기관: 김포도시공사
 
 [작성 지시]
-위의 [핵심 제안 장소]와 [핵심 문제 대상]을 중심으로 김포도시관리공사에 제출하는 시민제안서 초안을 작성해주세요.
+위의 [핵심 제안 장소]와 [핵심 문제 대상]을 중심으로 김포도시공사에 제출하는 시민제안서 초안을 작성해주세요.
 
 ## 1. 제안명
 - [핵심 제안 장소]의 [핵심 문제 대상]과 관련된 구체적이고 명확한 제목
@@ -608,9 +662,9 @@ def generate_ai_proposal(problem, solution):
 
 ## 3. 개선 방안
 - 사용자가 제안한 해결책: "{location_elements['requested_solution']}"
-- 김포도시관리공사에서 추진해 주실 것을 제안하는 구체적인 방안
-- "김포도시관리공사에서 ~을 추진해 주실 것을 제안합니다" 형태로 작성
-- 김포도시관리공사의 업무 범위와 역할을 고려한 현실적이고 실행 가능한 방안 제시
+- 김포도시공사에서 추진해 주실 것을 제안하는 구체적인 방안
+- "김포도시공사에서 ~을 추진해 주실 것을 제안합니다" 형태로 작성
+- 김포도시공사의 업무 범위와 역할을 고려한 현실적이고 실행 가능한 방안 제시
 - 구체적인 수치나 예산은 제시하지 말고 "현장 실사 후 결정", "관련 부서 검토 필요" 등으로 표현
 
 ## 4. 기대 효과
@@ -641,7 +695,7 @@ def generate_ai_proposal(problem, solution):
         return {
             'title': f"{location_elements['location']} {location_elements['problem_target']} 개선 제안",
             'problem': f"{location_elements['location']}의 {location_elements['problem_target']}에 대한 문제가 지속적으로 제기되고 있습니다.",
-            'solution': f"김포도시관리공사에서 {location_elements['requested_solution']}을 추진해 주실 것을 제안합니다.",
+            'solution': f"김포도시공사에서 {location_elements['requested_solution']}을 추진해 주실 것을 제안합니다.",
             'effect': f"{location_elements['location']}의 {location_elements['problem_target']} 개선을 통해 시민 편의 증진과 시설 이용률 향상을 기대할 수 있습니다."
         }
 
@@ -691,7 +745,7 @@ def parse_ai_response(response_text, location_elements):
         if not sections['problem']:
             sections['problem'] = f"{location_elements['location']}의 {location_elements['problem_target']}에 대한 문제가 지속적으로 제기되고 있습니다."
         if not sections['solution']:
-            sections['solution'] = f"김포도시관리공사에서 {location_elements['requested_solution']}을 추진해 주실 것을 제안합니다."
+            sections['solution'] = f"김포도시공사에서 {location_elements['requested_solution']}을 추진해 주실 것을 제안합니다."
         if not sections['effect']:
             sections['effect'] = f"{location_elements['location']}의 {location_elements['problem_target']} 개선을 통해 시민 편의 증진과 시설 이용률 향상을 기대할 수 있습니다."
         
@@ -702,7 +756,7 @@ def parse_ai_response(response_text, location_elements):
         return {
             'title': f"{location_elements['location']} {location_elements['problem_target']} 개선 제안",
             'problem': f"{location_elements['location']}의 {location_elements['problem_target']}에 대한 문제가 지속적으로 제기되고 있습니다.",
-            'solution': f"김포도시관리공사에서 {location_elements['requested_solution']}을 추진해 주실 것을 제안합니다.",
+            'solution': f"김포도시공사에서 {location_elements['requested_solution']}을 추진해 주실 것을 제안합니다.",
             'effect': f"{location_elements['location']}의 {location_elements['problem_target']} 개선을 통해 시민 편의 증진과 시설 이용률 향상을 기대할 수 있습니다."
         }
 
@@ -869,7 +923,7 @@ def create_pdf_file(title, problem, solution, effect, proposer_name):
         # 정보를 표 형태로 구성 (컬럼 폭 조정)
         info_table_data = [
             ['제안일자', current_date, '문서번호', f'PRO-{timestamp[:8]}'],
-            ['제안자명', proposer_name, '수신기관', '김포도시관리공사'],
+            ['제안자명', proposer_name, '수신기관', '김포도시공사'],
             ['제안분야', '시설물 개선', '처리기한', '접수 후 30일 이내']
         ]
         
@@ -967,7 +1021,7 @@ def create_pdf_file(title, problem, solution, effect, proposer_name):
         story.append(Paragraph("개인정보 수집 및 이용 안내", section_header_style))
         story.append(Spacer(1, 12))
         
-        consent_intro = "김포도시관리공사는 시민제안서 접수 및 처리 과정에서 다음과 같이 개인정보를 수집·이용합니다."
+        consent_intro = "김포도시공사는 시민제안서 접수 및 처리 과정에서 다음과 같이 개인정보를 수집·이용합니다."
         story.append(Paragraph(consent_intro, consent_style))
         story.append(Spacer(1, 15))
         

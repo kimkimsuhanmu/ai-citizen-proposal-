@@ -1,4 +1,4 @@
-// AI시민제안 비서 - 김포도시관리공사 (정형화된 질문 세트)
+// AI시민제안 비서 - 김포도시공사 (정형화된 질문 세트)
 
 // DOM 요소들
 const structuredProposalForm = document.getElementById('structuredProposalForm');
