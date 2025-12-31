@@ -50,10 +50,33 @@ if GEMINI_API_KEY == "your_actual_gemini_api_key_here" or not GEMINI_API_KEY:
 if GEMINI_API_KEY != "demo_key_for_testing":
     try:
         genai.configure(api_key=GEMINI_API_KEY)
-        # 사용 가능한 모델 이름 시도 (우선순위 순)
-        # gemini-pro가 가장 안정적이고 널리 지원됨
-        # 주의: 모델 초기화만으로는 충분하지 않음. 실제 API 호출이 성공해야 함
-        model_names = ['gemini-pro', 'gemini-1.5-pro']
+        
+        # 사용 가능한 모델 목록 확인 시도
+        try:
+            available_models = genai.list_models()
+            model_list = [m.name for m in available_models if 'generateContent' in m.supported_generation_methods]
+            logger.info(f"사용 가능한 모델 목록: {model_list[:5]}")  # 처음 5개만 로그
+            
+            # 사용 가능한 모델 이름 추출 (예: "models/gemini-pro" -> "gemini-pro")
+            available_model_names = []
+            for m in model_list:
+                if 'models/' in m:
+                    model_name = m.replace('models/', '')
+                    available_model_names.append(model_name)
+            
+            # 사용 가능한 모델이 있으면 우선 사용
+            if available_model_names:
+                model_names = available_model_names[:3]  # 처음 3개만 시도
+                logger.info(f"시도할 모델 목록: {model_names}")
+            else:
+                # 모델 목록을 가져올 수 없으면 기본 목록 사용
+                model_names = ['gemini-1.5-flash', 'gemini-pro', 'gemini-1.5-pro']
+                logger.warning("모델 목록을 가져올 수 없어 기본 목록 사용")
+        except Exception as list_error:
+            logger.warning(f"모델 목록 조회 실패: {list_error}, 기본 모델 목록 사용")
+            # 모델 목록 조회 실패 시 기본 목록 사용
+            model_names = ['gemini-1.5-flash', 'gemini-pro', 'gemini-1.5-pro']
+        
         model = None
         successful_model = None
         
@@ -61,7 +84,7 @@ if GEMINI_API_KEY != "demo_key_for_testing":
             try:
                 # 모델 초기화
                 test_model = genai.GenerativeModel(model_name)
-                # 실제 API 호출 테스트 (간단한 테스트로 실제 사용 가능 여부 확인)
+                # 실제 API 호출 테스트
                 try:
                     test_response = test_model.generate_content("Hello")
                     # 응답이 정상적으로 오면 모델 사용 가능
@@ -70,13 +93,8 @@ if GEMINI_API_KEY != "demo_key_for_testing":
                     logger.info(f"Gemini API가 성공적으로 설정되었습니다. 모델: {model_name}")
                     break
                 except Exception as api_error:
-                    # 모델은 초기화되었지만 API 호출 실패
                     error_msg = str(api_error)
                     logger.warning(f"모델 {model_name} API 호출 실패: {error_msg}")
-                    # 404 에러인 경우 다음 모델 시도
-                    if "404" in error_msg or "not found" in error_msg.lower():
-                        continue
-                    # 다른 에러인 경우도 다음 모델 시도
                     continue
             except Exception as e:
                 logger.warning(f"모델 {model_name} 초기화 실패: {e}")
@@ -84,7 +102,7 @@ if GEMINI_API_KEY != "demo_key_for_testing":
         
         if model is None:
             logger.error("사용 가능한 Gemini 모델을 찾을 수 없습니다. 모든 모델 시도 실패")
-            logger.error("사용 가능한 모델 목록을 확인하려면 ListModels API를 호출하세요")
+            logger.error("API 키가 올바른지, 또는 API 접근 권한이 있는지 확인하세요")
             raise Exception("사용 가능한 Gemini 모델을 찾을 수 없습니다")
     except Exception as e:
         logger.error(f"Gemini API 설정 오류: {e}")
