@@ -89,7 +89,7 @@ structuredProposalForm.addEventListener('submit', async (e) => {
     try {
         setLoading(true);
         
-        const response = await fetch('http://localhost:5000/generate-structured-proposal', {
+        const response = await fetch('https://ai-citizen-proposal.onrender.com/generate-structured-proposal', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -167,7 +167,7 @@ async function downloadPdfFile() {
     };
     
     try {
-        const response = await fetch('http://localhost:5000/download-pdf', {
+        const response = await fetch('https://ai-citizen-proposal.onrender.com/download-pdf', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -251,9 +251,13 @@ function loadInputsFromLocalStorage() {
     }
 }
 
-// 페이지 로드 시 저장된 입력값 불러오기
+// 페이지 로드 시 입력값 리셋 (저장된 값 불러오지 않음)
 document.addEventListener('DOMContentLoaded', function() {
-    loadInputsFromLocalStorage();
+    // 입력값을 리셋하기 위해 폼 초기화
+    structuredProposalForm.reset();
+    
+    // 로컬 스토리지에서 이전 데이터 삭제
+    localStorage.removeItem('proposalInputs');
 });
 
 // PDF 다운로드 버튼 이벤트

@@ -20,13 +20,7 @@ from flask_cors import CORS
 import google.generativeai as genai
 import requests
 from bs4 import BeautifulSoup
-from reportlab.lib.pagesizes import A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY, TA_RIGHT
+from fpdf import FPDF
 
 # Flask 앱 초기화
 app = Flask(__name__)
@@ -69,12 +63,12 @@ else:
 def register_korean_fonts():
     """한글 폰트 등록"""
     try:
-        # Windows 기본 한글 폰트 경로들
+        # 나눔고딕 폰트 경로 (루트 디렉토리)
         font_paths = [
-            'C:/Windows/Fonts/malgun.ttf',  # 맑은 고딕
-            'C:/Windows/Fonts/gulim.ttc',   # 굴림
-            'C:/Windows/Fonts/batang.ttc',  # 바탕
-            'C:/Windows/Fonts/dotum.ttc'    # 돋움
+            'NanumGothic.otf',
+            'NanumGothicBold.otf', 
+            'NanumGothicExtraBold.otf',
+            'NanumGothicLight.otf'
         ]
         
         for font_path in font_paths:
@@ -96,7 +90,7 @@ def register_korean_fonts():
         logger.error(f"폰트 등록 중 오류: {e}")
         return False
 
-# 폰트 등록 실행
+        # 폰트 등록 실행
 register_korean_fonts()
 
 def crawl_gimpo_facilities():
@@ -230,6 +224,129 @@ def generate_appropriate_title(core_location, core_target, solution_idea):
     else:
         return f"{core_location} 시설 개선 제안"
 
+def refine_user_input(core_location, core_target, problem_type, affected_people, solution_idea):
+    """
+    사용자 입력을 자연스러운 문장으로 변환 (1단계: 입력 정제)
+    
+    Args:
+        core_location (str): 핵심 장소 (예: 태산패밀리파크)
+        core_target (str): 핵심 대상 (예: 벤치가 낡았어요)
+        problem_type (str): 문제 유형 (안전, 불편, 미관 등)
+        affected_people (str): 주요 불편 대상 (어린이, 어르신 등)
+        solution_idea (str): 해결책 아이디어 (예: 새로 바꿔주세요)
+        
+    Returns:
+        dict: 정제된 사용자 입력
+            {
+                'refined_location': str,
+                'refined_target': str,
+                'refined_problem_description': str,
+                'refined_solution': str,
+                'success': bool
+            }
+    """
+    try:
+        # AI 모델이 없는 경우 원본 반환
+        if model is None:
+            logger.warning("Gemini API 모델이 없어 입력 정제를 건너뜁니다.")
+            return {
+                'refined_location': core_location,
+                'refined_target': core_target,
+                'refined_problem_description': f"{core_location}의 {core_target}에 대한 문제가 있습니다.",
+                'refined_solution': solution_idea if solution_idea else "개선이 필요합니다.",
+                'success': False
+            }
+        
+        # AI 모델 초기화
+        ai_model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        # 입력 정제 프롬프트 구성
+        refine_prompt = f"""당신은 시민제안서 작성을 돕는 AI 어시스턴트입니다.
+
+[임무]
+사용자가 입력한 내용을 자연스럽고 전문적인 문장으로 변환하되, 핵심 정보는 절대 변경하지 마세요.
+
+[사용자 원본 입력]
+- 장소: {core_location}
+- 문제 대상: {core_target}
+- 문제 유형: {problem_type if problem_type else '명시되지 않음'}
+- 불편 대상: {affected_people if affected_people else '명시되지 않음'}
+- 해결책: {solution_idea}
+
+[변환 지침]
+1. 구어체를 정중한 문체로 변환 (예: "벤치가 낡았어요" → "낡은 벤치")
+2. 단편적인 표현을 완전한 문장으로 확장 (예: "새로 바꿔주세요" → "기존 시설을 새로운 것으로 교체하는 것을 제안합니다")
+3. 핵심 정보(장소명, 대상, 요청사항)는 절대 변경하지 않음
+4. 자연스럽고 읽기 쉬운 문장으로 작성
+5. 공공기관 제안서에 적합한 정중한 어조 유지
+6. 불필요한 감정 표현이나 과장된 표현은 제거
+
+[출력 형식]
+다음 JSON 형식으로만 출력하세요. 다른 설명이나 텍스트는 포함하지 마세요:
+{{
+    "refined_location": "정제된 장소명 (원본과 동일하거나 약간만 정제)",
+    "refined_target": "정제된 문제 대상 (구어체를 문어체로 변환)",
+    "refined_problem_description": "문제 상황을 자연스러운 문장으로 설명 (2-3문장)",
+    "refined_solution": "해결책을 자연스러운 문장으로 설명 (1-2문장)"
+}}
+
+중요: JSON 형식만 출력하고, 다른 설명이나 마크다운 형식은 사용하지 마세요."""
+        
+        # Gemini API 호출
+        response = ai_model.generate_content(refine_prompt)
+        response_text = response.text.strip()
+        
+        # JSON 파싱 시도
+        try:
+            # JSON 코드 블록 제거 (있는 경우)
+            if '```json' in response_text:
+                response_text = response_text.split('```json')[1].split('```')[0].strip()
+            elif '```' in response_text:
+                response_text = response_text.split('```')[1].split('```')[0].strip()
+            
+            # JSON 파싱
+            refined_data = json.loads(response_text)
+            
+            # 필수 필드 검증
+            required_fields = ['refined_location', 'refined_target', 'refined_problem_description', 'refined_solution']
+            for field in required_fields:
+                if field not in refined_data or not refined_data[field]:
+                    logger.warning(f"정제된 데이터에 필수 필드 '{field}'가 없거나 비어있습니다. 원본 사용.")
+                    return {
+                        'refined_location': core_location,
+                        'refined_target': core_target,
+                        'refined_problem_description': f"{core_location}의 {core_target}에 대한 문제가 있습니다.",
+                        'refined_solution': solution_idea if solution_idea else "개선이 필요합니다.",
+                        'success': False
+                    }
+            
+            refined_data['success'] = True
+            logger.info("사용자 입력 정제 성공")
+            return refined_data
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON 파싱 오류: {e}")
+            logger.debug(f"응답 텍스트: {response_text[:200]}")
+            # JSON 파싱 실패 시 원본 반환
+            return {
+                'refined_location': core_location,
+                'refined_target': core_target,
+                'refined_problem_description': f"{core_location}의 {core_target}에 대한 문제가 있습니다.",
+                'refined_solution': solution_idea if solution_idea else "개선이 필요합니다.",
+                'success': False
+            }
+            
+    except Exception as e:
+        logger.error(f"사용자 입력 정제 오류: {str(e)}")
+        # 에러 발생 시 원본 반환
+        return {
+            'refined_location': core_location,
+            'refined_target': core_target,
+            'refined_problem_description': f"{core_location}의 {core_target}에 대한 문제가 있습니다.",
+            'refined_solution': solution_idea if solution_idea else "개선이 필요합니다.",
+            'success': False
+        }
+
 def generate_structured_ai_proposal(core_location, core_target, problem_type, affected_people, solution_idea):
     """
     정형화된 질문 세트 기반 AI 제안서 생성
@@ -245,61 +362,83 @@ def generate_structured_ai_proposal(core_location, core_target, problem_type, af
         dict: 제안서 내용
     """
     try:
+        # 1단계: 사용자 입력 정제 (자연스러운 문장으로 변환)
+        logger.info("1단계: 사용자 입력 정제 시작...")
+        refined_input = refine_user_input(core_location, core_target, problem_type, affected_people, solution_idea)
+        
+        # 정제 성공 여부에 따라 사용할 데이터 결정
+        if refined_input['success']:
+            use_location = refined_input['refined_location']
+            use_target = refined_input['refined_target']
+            use_problem_desc = refined_input['refined_problem_description']
+            use_solution = refined_input['refined_solution']
+            logger.info("사용자 입력 정제 완료 - 정제된 내용 사용")
+        else:
+            # 정제 실패 시 원본 사용
+            use_location = core_location
+            use_target = core_target
+            use_problem_desc = f"{core_location}의 {core_target}에 대한 문제가 있습니다."
+            use_solution = solution_idea if solution_idea else "개선이 필요합니다."
+            logger.info("사용자 입력 정제 실패 - 원본 내용 사용")
+        
         # 장소 유형 파악
-        location_context = get_location_context(core_location)
+        location_context = get_location_context(use_location)
         
         # AI 모델 초기화
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        ai_model = genai.GenerativeModel('gemini-1.5-flash')
         
-        # 정형화된 프롬프트 구성
+        # 2단계: 정제된 내용 기반 제안서 생성 프롬프트 구성
         prompt = f"""
 당신은 **김포시 정책기획실장**이자 **시민제안서 검토 전문가**입니다.
 
 [최우선 원칙]
 - 사용자가 제공한 핵심 정보를 절대 변경하거나 일반화하지 마세요
-- 사용자의 의견을 최대한 보존하고 다듬기만 하세요
+- 정제된 사용자 의견을 바탕으로 전문적인 제안서를 작성하세요
 - 새로운 내용을 추가하거나 추측하지 마세요
 
-[사용자 핵심 의견]
-- 핵심 제안 장소: {core_location}
-- 핵심 문제 대상: {core_target}
+[정제된 사용자 핵심 의견]
+- 핵심 제안 장소: {use_location}
+- 핵심 문제 대상: {use_target}
+- 문제 상황 설명: {use_problem_desc}
+- 요청 해결책: {use_solution}
 - 문제 유형: {problem_type if problem_type else '사용자가 명시하지 않음'}
 - 주요 불편 대상: {affected_people if affected_people else '사용자가 명시하지 않음'}
-- 요청 해결책: {solution_idea}
 
 [맥락 정보]
-- 제안 대상 장소: {core_location}
+- 제안 대상 장소: {use_location}
 - 장소 유형 및 특징: {location_context}
 - 수신 기관: 김포도시관리공사
 
 [작성 지시]
-위의 [핵심 제안 장소]와 [핵심 문제 대상]을 중심으로 김포도시관리공사에 제출하는 시민제안서 초안을 작성해주세요.
+위의 [정제된 사용자 핵심 의견]을 바탕으로 김포도시관리공사에 제출하는 시민제안서 초안을 작성해주세요.
+[문제 상황 설명]을 참고하여 현행상의 문제점을 작성하고, [요청 해결책]을 바탕으로 개선안을 작성하세요.
 
 ## 1. 제안명
-- [핵심 제안 장소]의 [핵심 문제 대상] 개선을 위한 구체적이고 명확한 제목
+- {use_location}의 {use_target} 개선을 위한 구체적이고 명확한 제목
 - "~ 개선 제안", "~ 설치 요청", "~ 확충 제안", "~ 보강 제안" 등의 형태로 작성
 - 15-25자 내외로 간결하고 핵심을 담은 제목 작성
-- 사용자의 구어체 표현은 정중한 문체로 변환하여 작성
-- 예시: "벤치가 낡았어요" → "벤치 교체", "주차공간이 부족해요" → "주차공간 확충"
+- 정제된 문제 대상을 바탕으로 작성
 
 ## 2. 현행상의 문제점
-- [핵심 제안 장소]의 [핵심 문제 대상]에 대한 구체적인 문제 상황
+- {use_problem_desc}를 바탕으로 작성하되, 더 구체적이고 전문적으로 확장
 - {f"문제 유형이 '{problem_type}'인 경우, 해당 관점에서 문제점을 서술" if problem_type else ""}
 - {f"주요 불편 대상이 '{affected_people}'인 경우, 해당 그룹의 관점에서 문제점을 서술" if affected_people else ""}
 - 2-3문장으로 간결하게 작성
+- 자연스럽고 읽기 쉬운 문장으로 작성
 
 ## 3. 개선 안
-- 사용자가 제안한 해결책: "{solution_idea}"
+- 정제된 해결책: "{use_solution}"을 바탕으로 작성
 - 김포도시관리공사에서 추진해 주실 것을 제안하는 구체적인 방안
 - "김포도시관리공사에서 ~을 추진해 주실 것을 제안합니다" 형태로 작성
 - 김포도시관리공사의 업무 범위와 역할을 고려한 현실적이고 실행 가능한 방안 제시
+- 정제된 해결책의 핵심을 유지하면서 자연스럽게 확장
 
 ## 4. 효과
-- [핵심 제안 장소]의 [핵심 문제 대상] 개선을 통한 구체적인 기대 효과
+- {use_location}의 {use_target} 개선을 통한 구체적인 기대 효과
 - 직접적 편익, 시설 활성화 측면, 사회적/공익적 가치로 구분하여 서술
 
 [금지사항 - 절대 준수]
-- [핵심 제안 장소]와 [핵심 문제 대상]을 일반화하거나 생략하는 것 금지
+- {use_location}와 {use_target}을 일반화하거나 생략하는 것 금지
 - 과장되고 추상적인 내용 작성 금지
 - 장소의 특성과 무관한 일반적인 내용 작성 금지
 - 김포시와 무관한 일반적인 내용으로 작성하는 것 금지
@@ -308,24 +447,44 @@ def generate_structured_ai_proposal(core_location, core_target, problem_type, af
 
 위 지침에 따라 제안서를 작성해주세요.
 """
-        response = model.generate_content(prompt)
+        logger.info("2단계: 제안서 생성 시작...")
+        response = ai_model.generate_content(prompt)
         response_text = response.text.strip()
         
-        # 응답 파싱
-        proposal = parse_structured_proposal(response_text, core_location, core_target, solution_idea)
+        # 응답 파싱 (정제된 내용 사용)
+        proposal = parse_structured_proposal(response_text, use_location, use_target, use_solution)
         
         return proposal
         
     except Exception as e:
         logger.error(f"정형화된 AI 제안서 생성 오류: {str(e)}")
-        # 제안명 생성 로직 개선 - 핵심 내용 파악하여 적절한 제안명 생성
-        title = generate_appropriate_title(core_location, core_target, solution_idea)
+        
+        # 에러 발생 시 정제 시도 (아직 시도하지 않은 경우)
+        try:
+            logger.info("에러 발생 - 입력 정제 재시도...")
+            refined_input = refine_user_input(core_location, core_target, problem_type, affected_people, solution_idea)
+            if refined_input['success']:
+                use_location = refined_input['refined_location']
+                use_target = refined_input['refined_target']
+                use_solution = refined_input['refined_solution']
+            else:
+                use_location = core_location
+                use_target = core_target
+                use_solution = solution_idea if solution_idea else "개선이 필요합니다."
+        except:
+            # 정제도 실패한 경우 원본 사용
+            use_location = core_location
+            use_target = core_target
+            use_solution = solution_idea if solution_idea else "개선이 필요합니다."
+        
+        # 폴백: 기본 제안서 생성
+        title = generate_appropriate_title(use_location, use_target, use_solution)
             
         return {
             'title': title,
-            'problem': f"{core_location}의 {core_target}에 대한 문제가 지속적으로 제기되고 있습니다.",
-            'solution': f"김포도시관리공사에서 {solution_idea}을 추진해 주실 것을 제안합니다.",
-            'effect': f"{core_location}의 {core_target} 개선을 통해 시민 편의 증진과 시설 이용률 향상을 기대할 수 있습니다."
+            'problem': f"{use_location}의 {use_target}에 대한 문제가 지속적으로 제기되고 있습니다.",
+            'solution': f"김포도시관리공사에서 {use_solution}을 추진해 주실 것을 제안합니다.",
+            'effect': f"{use_location}의 {use_target} 개선을 통해 시민 편의 증진과 시설 이용률 향상을 기대할 수 있습니다."
         }
 
 def parse_structured_proposal(response_text, core_location, core_target, solution_idea):
@@ -819,11 +978,11 @@ def create_pdf_file(title, problem, solution, effect, proposer_name):
             for cell in row:
                 if row == consent_data[0]:  # 헤더 행
                     formatted_row.append(TableParagraph(f'<b>{cell}</b>', 
-                        ParagraphStyle('TableHeader', fontName='Korean', fontSize=10, 
+                        ParagraphStyle('TableHeader', fontName='Helvetica', fontSize=10, 
                         textColor=colors.white, alignment=TA_LEFT)))
                 else:
                     formatted_row.append(TableParagraph(cell, 
-                        ParagraphStyle('TableCell', fontName='Korean', fontSize=10, 
+                        ParagraphStyle('TableCell', fontName='Helvetica', fontSize=10, 
                         textColor=colors.black, alignment=TA_LEFT, leading=12)))
             formatted_data.append(formatted_row)
         
@@ -885,7 +1044,15 @@ def create_pdf_file(title, problem, solution, effect, proposer_name):
 # API 엔드포인트들
 @app.route('/')
 def index():
-    return "AI시민제안 비서 서버가 실행 중입니다."
+    return send_file('index.html')
+
+@app.route('/<path:filename>')
+def static_files(filename):
+    """정적 파일 서빙 (CSS, JS 등)"""
+    try:
+        return send_file(filename)
+    except FileNotFoundError:
+        return "File not found", 404
 
 @app.route('/health', methods=['GET'])
 def health_check():
