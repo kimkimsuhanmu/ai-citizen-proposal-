@@ -140,18 +140,23 @@ def register_korean_fonts():
         
         # 나눔고딕 폰트 경로 (여러 위치 시도)
         # Flask 앱 루트 디렉토리 기준으로 먼저 시도
+        # 주의: ReportLab의 TTFont는 OTF의 postscript outlines를 지원하지 않으므로 TTF 파일을 우선 사용
         font_paths = [
-            # Flask 앱 루트 디렉토리 기준
-            os.path.join(app_root, 'NanumGothic.otf'),
+            # Flask 앱 루트 디렉토리 기준 (TTF 우선)
             os.path.join(app_root, 'NanumGothic.ttf'),
-            os.path.join(app_root, 'NanumGothicBold.otf'),
-            # 현재 작업 디렉토리 기준
-            os.path.join(cwd, 'NanumGothic.otf'),
+            os.path.join(app_root, 'NanumGothicBold.ttf'),
+            # 현재 작업 디렉토리 기준 (TTF 우선)
             os.path.join(cwd, 'NanumGothic.ttf'),
-            os.path.join(cwd, 'NanumGothicBold.otf'),
-            # 상대 경로 (현재 작업 디렉토리 기준)
-            'NanumGothic.otf',
+            os.path.join(cwd, 'NanumGothicBold.ttf'),
+            # 상대 경로 (현재 작업 디렉토리 기준, TTF 우선)
             'NanumGothic.ttf',
+            'NanumGothicBold.ttf',
+            # OTF 파일도 시도 (일부 환경에서 작동할 수 있음)
+            os.path.join(app_root, 'NanumGothic.otf'),
+            os.path.join(app_root, 'NanumGothicBold.otf'),
+            os.path.join(cwd, 'NanumGothic.otf'),
+            os.path.join(cwd, 'NanumGothicBold.otf'),
+            'NanumGothic.otf',
             'NanumGothicBold.otf',
             # nanum-all_new 폴더 내 나눔고딕 OTF (앱 루트 기준)
             os.path.join(app_root, 'nanum-all_new', '나눔 글꼴', '나눔고딕', 'NanumFontSetup_OTF_GOTHIC', 'NanumGothic.otf'),
