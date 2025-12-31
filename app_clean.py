@@ -22,6 +22,22 @@ import requests
 from bs4 import BeautifulSoup
 from fpdf import FPDF
 
+# ReportLab imports for PDF generation
+try:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY, TA_RIGHT
+    from reportlab.lib import colors
+    REPORTLAB_AVAILABLE = True
+except ImportError as e:
+    REPORTLAB_AVAILABLE = False
+    # logger는 아직 초기화되지 않았으므로 print 사용
+    print(f"Warning: ReportLab import 실패: {e}")
+
 # Flask 앱 초기화
 app = Flask(__name__)
 CORS(app)  # 프런트엔드와의 CORS 문제 해결
@@ -917,6 +933,30 @@ def parse_ai_response(response_text, location_elements):
 def create_pdf_file(title, problem, solution, effect, proposer_name):
     """PDF 파일 생성 - 전문적이고 세련된 시민제안서 양식"""
     try:
+        # ReportLab 사용 가능 여부 확인
+        if not REPORTLAB_AVAILABLE:
+            raise Exception("ReportLab이 설치되지 않았습니다. pip install reportlab을 실행하세요.")
+        
+        # 한글 폰트 등록 확인
+        korean_font_registered = False
+        try:
+            # 폰트가 등록되어 있는지 확인
+            if 'Korean' in pdfmetrics.getRegisteredFontNames():
+                korean_font_registered = True
+                logger.info("한글 폰트 'Korean'이 이미 등록되어 있습니다.")
+            else:
+                # 폰트 등록 시도
+                if register_korean_fonts():
+                    korean_font_registered = True
+                else:
+                    logger.warning("한글 폰트 등록 실패. Helvetica 폰트를 사용합니다.")
+        except Exception as e:
+            logger.warning(f"폰트 등록 확인 중 오류: {e}. Helvetica 폰트를 사용합니다.")
+        
+        # 사용할 폰트 이름 결정
+        font_name = 'Korean' if korean_font_registered else 'Helvetica'
+        logger.info(f"PDF 생성에 사용할 폰트: {font_name}")
+        
         # 파일명 생성
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"시민제안서_{proposer_name}_{timestamp}.pdf"
@@ -935,7 +975,7 @@ def create_pdf_file(title, problem, solution, effect, proposer_name):
         title_style = ParagraphStyle(
             'Title',
             parent=styles['Heading1'],
-            fontName='Korean',
+            fontName=font_name,
             fontSize=24,
             spaceAfter=30,
             alignment=TA_CENTER,
@@ -950,7 +990,7 @@ def create_pdf_file(title, problem, solution, effect, proposer_name):
         subtitle_style = ParagraphStyle(
             'Subtitle',
             parent=styles['Heading2'],
-            fontName='Korean',
+            fontName=font_name,
             fontSize=14,
             spaceAfter=20,
             spaceBefore=0,
@@ -966,7 +1006,7 @@ def create_pdf_file(title, problem, solution, effect, proposer_name):
         info_header_style = ParagraphStyle(
             'InfoHeader',
             parent=styles['Heading3'],
-            fontName='Korean',
+            fontName=font_name,
             fontSize=16,
             spaceAfter=15,
             spaceBefore=20,
@@ -982,7 +1022,7 @@ def create_pdf_file(title, problem, solution, effect, proposer_name):
         section_header_style = ParagraphStyle(
             'SectionHeader',
             parent=styles['Heading3'],
-            fontName='Korean',
+            fontName=font_name,
             fontSize=16,
             spaceAfter=12,
             spaceBefore=20,
@@ -998,7 +1038,7 @@ def create_pdf_file(title, problem, solution, effect, proposer_name):
         body_style = ParagraphStyle(
             'Body',
             parent=styles['Normal'],
-            fontName='Korean',
+            fontName=font_name,
             fontSize=12,
             spaceAfter=15,
             alignment=TA_JUSTIFY,
@@ -1010,7 +1050,7 @@ def create_pdf_file(title, problem, solution, effect, proposer_name):
         info_style = ParagraphStyle(
             'InfoText',
             parent=styles['Normal'],
-            fontName='Korean',
+            fontName=font_name,
             fontSize=11,
             spaceAfter=8,
             alignment=TA_LEFT,
@@ -1021,7 +1061,7 @@ def create_pdf_file(title, problem, solution, effect, proposer_name):
         signature_style = ParagraphStyle(
             'Signature',
             parent=styles['Normal'],
-            fontName='Korean',
+            fontName=font_name,
             fontSize=12,
             spaceAfter=15,
             alignment=TA_RIGHT,
@@ -1032,7 +1072,7 @@ def create_pdf_file(title, problem, solution, effect, proposer_name):
         consent_style = ParagraphStyle(
             'ConsentText',
             parent=styles['Normal'],
-            fontName='Korean',
+            fontName=font_name,
             fontSize=11,
             spaceAfter=10,
             alignment=TA_JUSTIFY,
@@ -1045,7 +1085,7 @@ def create_pdf_file(title, problem, solution, effect, proposer_name):
         document_header_style = ParagraphStyle(
             'DocumentHeader',
             parent=styles['Heading2'],
-            fontName='Korean',
+            fontName=font_name,
             fontSize=18,
             spaceAfter=20,
             spaceBefore=15,
@@ -1061,7 +1101,7 @@ def create_pdf_file(title, problem, solution, effect, proposer_name):
         numbered_list_style = ParagraphStyle(
             'NumberedList',
             parent=styles['Normal'],
-            fontName='Korean',
+            fontName=font_name,
             fontSize=12,
             spaceAfter=10,
             alignment=TA_LEFT,
@@ -1081,15 +1121,14 @@ def create_pdf_file(title, problem, solution, effect, proposer_name):
             ['제안분야', '시설물 개선', '처리기한', '접수 후 30일 이내']
         ]
         
-        from reportlab.platypus import Table, TableStyle
-        from reportlab.lib import colors
+        # Table, TableStyle, colors는 이미 상단에서 import됨
         
         info_table = Table(info_table_data, colWidths=[70, 130, 70, 130])
         info_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), colors.white),
             ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, -1), 'Korean'),
+            ('FONTNAME', (0, 0), (-1, -1), font_name),
             ('FONTSIZE', (0, 0), (-1, -1), 11),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
             ('TOPPADDING', (0, 0), (-1, -1), 8),
@@ -1151,7 +1190,7 @@ def create_pdf_file(title, problem, solution, effect, proposer_name):
             ('BACKGROUND', (0, 0), (-1, -1), colors.white),
             ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, -1), 'Korean'),
+            ('FONTNAME', (0, 0), (-1, -1), font_name),
             ('FONTSIZE', (0, 0), (-1, -1), 11),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
             ('TOPPADDING', (0, 0), (-1, -1), 10),
@@ -1241,7 +1280,7 @@ def create_pdf_file(title, problem, solution, effect, proposer_name):
             ('BACKGROUND', (0, 0), (-1, -1), colors.white),
             ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, -1), 'Korean'),
+            ('FONTNAME', (0, 0), (-1, -1), font_name),
             ('FONTSIZE', (0, 0), (-1, -1), 11),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
             ('TOPPADDING', (0, 0), (-1, -1), 10),
@@ -1379,12 +1418,25 @@ def download_pdf():
         # PDF 파일 생성
         filepath = create_pdf_file(title, problem, solution, effect, proposer_name)
         
+        # 파일 전송 (전송 후 자동 삭제를 위해 after_this_request 사용)
+        @request.after_this_request
+        def remove_file(response):
+            try:
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+                    logger.info(f"임시 PDF 파일 삭제 완료: {filepath}")
+            except Exception as e:
+                logger.warning(f"임시 PDF 파일 삭제 실패: {e}")
+            return response
+        
         # 파일 전송
         return send_file(filepath, as_attachment=True, download_name=os.path.basename(filepath))
         
     except Exception as e:
         logger.error(f"PDF 다운로드 오류: {str(e)}")
-        return jsonify({'error': 'PDF 생성 중 오류가 발생했습니다.'}), 500
+        import traceback
+        logger.error(f"상세 오류: {traceback.format_exc()}")
+        return jsonify({'error': f'PDF 생성 중 오류가 발생했습니다: {str(e)}'}), 500
 
 if __name__ == '__main__':
     # 시설물 정보 초기화
