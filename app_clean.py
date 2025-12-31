@@ -50,8 +50,20 @@ if GEMINI_API_KEY == "your_actual_gemini_api_key_here" or not GEMINI_API_KEY:
 if GEMINI_API_KEY != "demo_key_for_testing":
     try:
         genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        logger.info("Gemini API가 성공적으로 설정되었습니다.")
+        # 최신 API에서는 모델 이름이 다를 수 있으므로 여러 옵션 시도
+        model_names = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-pro', 'gemini-1.5-pro']
+        model = None
+        for model_name in model_names:
+            try:
+                model = genai.GenerativeModel(model_name)
+                logger.info(f"Gemini API가 성공적으로 설정되었습니다. 모델: {model_name}")
+                break
+            except Exception as e:
+                logger.warning(f"모델 {model_name} 초기화 실패: {e}")
+                continue
+        
+        if model is None:
+            raise Exception("사용 가능한 Gemini 모델을 찾을 수 없습니다")
     except Exception as e:
         logger.error(f"Gemini API 설정 오류: {e}")
         model = None
@@ -261,8 +273,20 @@ def refine_user_input(core_location, core_target, problem_type, affected_people,
         
         # AI 모델 초기화 (API 키가 있으면 항상 시도)
         try:
-            ai_model = genai.GenerativeModel('gemini-1.5-flash')
-            logger.info("입력 정제를 위한 Gemini 모델 초기화 완료")
+            # 최신 API에서는 모델 이름이 다를 수 있으므로 여러 옵션 시도
+            model_names = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-pro', 'gemini-1.5-pro']
+            ai_model = None
+            for model_name in model_names:
+                try:
+                    ai_model = genai.GenerativeModel(model_name)
+                    logger.info(f"입력 정제를 위한 Gemini 모델 초기화 완료: {model_name}")
+                    break
+                except Exception as e:
+                    logger.warning(f"모델 {model_name} 초기화 실패: {e}")
+                    continue
+            
+            if ai_model is None:
+                raise Exception("사용 가능한 Gemini 모델을 찾을 수 없습니다")
         except Exception as e:
             logger.error(f"Gemini 모델 초기화 실패: {e}")
             return {
@@ -422,8 +446,24 @@ def generate_structured_ai_proposal(core_location, core_target, problem_type, af
         # 장소 유형 파악
         location_context = get_location_context(use_location)
         
-        # AI 모델 초기화
-        ai_model = genai.GenerativeModel('gemini-1.5-flash')
+        # AI 모델 초기화 (전역 model 사용 또는 새로 생성)
+        if model is not None:
+            ai_model = model
+        else:
+            # 전역 model이 없으면 새로 생성 시도
+            model_names = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-pro', 'gemini-1.5-pro']
+            ai_model = None
+            for model_name in model_names:
+                try:
+                    ai_model = genai.GenerativeModel(model_name)
+                    logger.info(f"제안서 생성을 위한 Gemini 모델 초기화: {model_name}")
+                    break
+                except Exception as e:
+                    logger.warning(f"모델 {model_name} 초기화 실패: {e}")
+                    continue
+            
+            if ai_model is None:
+                raise Exception("사용 가능한 Gemini 모델을 찾을 수 없습니다")
         
         # 2단계: 정제된 내용 기반 제안서 생성 프롬프트 구성 (개선된 버전)
         prompt = f"""
@@ -626,7 +666,20 @@ def generate_ai_proposal(problem, solution):
         location_context = get_location_context(location_elements['location'])
         
         # 2단계: AI 모델 초기화
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # 여러 모델 이름 시도
+        model_names = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-pro', 'gemini-1.5-pro']
+        model = None
+        for model_name in model_names:
+            try:
+                model = genai.GenerativeModel(model_name)
+                logger.info(f"Gemini 모델 초기화 성공: {model_name}")
+                break
+            except Exception as e:
+                logger.warning(f"모델 {model_name} 초기화 실패: {e}")
+                continue
+        
+        if model is None:
+            raise Exception("사용 가능한 Gemini 모델을 찾을 수 없습니다")
         
         # 3단계: 마스터 프롬프트 구성
         prompt = f"""
