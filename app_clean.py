@@ -246,9 +246,11 @@ def refine_user_input(core_location, core_target, problem_type, affected_people,
             }
     """
     try:
-        # AI 모델이 없는 경우 원본 반환
-        if model is None:
-            logger.warning("Gemini API 모델이 없어 입력 정제를 건너뜁니다.")
+        # API 키 확인 및 모델 초기화
+        api_key = os.getenv('GEMINI_API_KEY') or GEMINI_API_KEY
+        
+        if not api_key or api_key == "demo_key_for_testing":
+            logger.warning("Gemini API 키가 없어 입력 정제를 건너뜁니다.")
             return {
                 'refined_location': core_location,
                 'refined_target': core_target,
@@ -257,8 +259,19 @@ def refine_user_input(core_location, core_target, problem_type, affected_people,
                 'success': False
             }
         
-        # AI 모델 초기화
-        ai_model = genai.GenerativeModel('gemini-1.5-flash')
+        # AI 모델 초기화 (API 키가 있으면 항상 시도)
+        try:
+            ai_model = genai.GenerativeModel('gemini-1.5-flash')
+            logger.info("입력 정제를 위한 Gemini 모델 초기화 완료")
+        except Exception as e:
+            logger.error(f"Gemini 모델 초기화 실패: {e}")
+            return {
+                'refined_location': core_location,
+                'refined_target': core_target,
+                'refined_problem_description': f"{core_location}의 {core_target}에 대한 문제가 있습니다.",
+                'refined_solution': solution_idea if solution_idea else "개선이 필요합니다.",
+                'success': False
+            }
         
         # 입력 정제 프롬프트 구성
         refine_prompt = f"""당신은 시민제안서 작성을 돕는 AI 어시스턴트입니다.
