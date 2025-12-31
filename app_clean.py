@@ -52,24 +52,31 @@ if GEMINI_API_KEY != "demo_key_for_testing":
         genai.configure(api_key=GEMINI_API_KEY)
         # 사용 가능한 모델 이름 시도 (우선순위 순)
         # gemini-pro가 가장 안정적이고 널리 지원됨
-        model_names = ['gemini-pro', 'gemini-1.5-pro', 'gemini-1.5-flash-latest', 'gemini-1.5-flash']
+        # 주의: 모델 초기화만으로는 충분하지 않음. 실제 API 호출이 성공해야 함
+        model_names = ['gemini-pro', 'gemini-1.5-pro']
         model = None
         successful_model = None
         
         for model_name in model_names:
             try:
-                # 모델 초기화 시도
+                # 모델 초기화
                 test_model = genai.GenerativeModel(model_name)
-                # 실제 API 호출 테스트 (간단한 테스트)
+                # 실제 API 호출 테스트 (간단한 테스트로 실제 사용 가능 여부 확인)
                 try:
-                    test_model.generate_content("test")
+                    test_response = test_model.generate_content("Hello")
+                    # 응답이 정상적으로 오면 모델 사용 가능
                     model = test_model
                     successful_model = model_name
                     logger.info(f"Gemini API가 성공적으로 설정되었습니다. 모델: {model_name}")
                     break
                 except Exception as api_error:
                     # 모델은 초기화되었지만 API 호출 실패
-                    logger.warning(f"모델 {model_name} API 호출 실패: {api_error}")
+                    error_msg = str(api_error)
+                    logger.warning(f"모델 {model_name} API 호출 실패: {error_msg}")
+                    # 404 에러인 경우 다음 모델 시도
+                    if "404" in error_msg or "not found" in error_msg.lower():
+                        continue
+                    # 다른 에러인 경우도 다음 모델 시도
                     continue
             except Exception as e:
                 logger.warning(f"모델 {model_name} 초기화 실패: {e}")
@@ -77,6 +84,7 @@ if GEMINI_API_KEY != "demo_key_for_testing":
         
         if model is None:
             logger.error("사용 가능한 Gemini 모델을 찾을 수 없습니다. 모든 모델 시도 실패")
+            logger.error("사용 가능한 모델 목록을 확인하려면 ListModels API를 호출하세요")
             raise Exception("사용 가능한 Gemini 모델을 찾을 수 없습니다")
     except Exception as e:
         logger.error(f"Gemini API 설정 오류: {e}")
@@ -287,25 +295,28 @@ def refine_user_input(core_location, core_target, problem_type, affected_people,
         
         # AI 모델 초기화 (API 키가 있으면 항상 시도)
         try:
-            # 전역 model이 있으면 재사용, 없으면 새로 생성
+            # 전역 model이 있으면 재사용 (이미 테스트 완료된 모델)
             if model is not None:
                 ai_model = model
-                logger.info("전역 Gemini 모델 재사용")
+                logger.info("전역 Gemini 모델 재사용 (이미 검증됨)")
             else:
-                # 전역 model이 없으면 새로 생성 시도
-                model_names = ['gemini-pro', 'gemini-1.5-pro', 'gemini-1.5-flash-latest', 'gemini-1.5-flash']
+                # 전역 model이 없으면 새로 생성 시도 (gemini-pro 우선)
+                model_names = ['gemini-pro', 'gemini-1.5-pro']
                 ai_model = None
                 for model_name in model_names:
                     try:
                         test_model = genai.GenerativeModel(model_name)
-                        # 간단한 테스트 호출
+                        # 실제 API 호출 테스트
                         try:
-                            test_model.generate_content("test")
+                            test_response = test_model.generate_content("test")
                             ai_model = test_model
                             logger.info(f"입력 정제를 위한 Gemini 모델 초기화 완료: {model_name}")
                             break
                         except Exception as api_error:
-                            logger.warning(f"모델 {model_name} API 호출 실패: {api_error}")
+                            error_msg = str(api_error)
+                            logger.warning(f"모델 {model_name} API 호출 실패: {error_msg}")
+                            if "404" in error_msg or "not found" in error_msg.lower():
+                                continue
                             continue
                     except Exception as e:
                         logger.warning(f"모델 {model_name} 초기화 실패: {e}")
@@ -475,25 +486,28 @@ def generate_structured_ai_proposal(core_location, core_target, problem_type, af
         # 장소 유형 파악
         location_context = get_location_context(use_location)
         
-        # AI 모델 초기화 (전역 model 사용 또는 새로 생성)
+        # AI 모델 초기화 (전역 model 사용 - 이미 검증됨)
         if model is not None:
             ai_model = model
-            logger.info("제안서 생성을 위해 전역 Gemini 모델 재사용")
+            logger.info("제안서 생성을 위해 전역 Gemini 모델 재사용 (이미 검증됨)")
         else:
-            # 전역 model이 없으면 새로 생성 시도
-            model_names = ['gemini-pro', 'gemini-1.5-pro', 'gemini-1.5-flash-latest', 'gemini-1.5-flash']
+            # 전역 model이 없으면 새로 생성 시도 (gemini-pro 우선)
+            model_names = ['gemini-pro', 'gemini-1.5-pro']
             ai_model = None
             for model_name in model_names:
                 try:
                     test_model = genai.GenerativeModel(model_name)
-                    # 간단한 테스트 호출
+                    # 실제 API 호출 테스트
                     try:
-                        test_model.generate_content("test")
+                        test_response = test_model.generate_content("test")
                         ai_model = test_model
                         logger.info(f"제안서 생성을 위한 Gemini 모델 초기화: {model_name}")
                         break
                     except Exception as api_error:
-                        logger.warning(f"모델 {model_name} API 호출 실패: {api_error}")
+                        error_msg = str(api_error)
+                        logger.warning(f"모델 {model_name} API 호출 실패: {error_msg}")
+                        if "404" in error_msg or "not found" in error_msg.lower():
+                            continue
                         continue
                 except Exception as e:
                     logger.warning(f"모델 {model_name} 초기화 실패: {e}")
@@ -720,25 +734,28 @@ def generate_ai_proposal(problem, solution):
         location_elements = extract_key_elements(problem, solution)
         location_context = get_location_context(location_elements['location'])
         
-        # 2단계: AI 모델 초기화 (전역 model 사용 또는 새로 생성)
+        # 2단계: AI 모델 초기화 (전역 model 사용 - 이미 검증됨)
         if model is not None:
             ai_model = model
-            logger.info("제안서 생성을 위해 전역 Gemini 모델 재사용")
+            logger.info("제안서 생성을 위해 전역 Gemini 모델 재사용 (이미 검증됨)")
         else:
-            # 전역 model이 없으면 새로 생성 시도
-            model_names = ['gemini-pro', 'gemini-1.5-pro', 'gemini-1.5-flash-latest', 'gemini-1.5-flash']
+            # 전역 model이 없으면 새로 생성 시도 (gemini-pro 우선)
+            model_names = ['gemini-pro', 'gemini-1.5-pro']
             ai_model = None
             for model_name in model_names:
                 try:
                     test_model = genai.GenerativeModel(model_name)
-                    # 간단한 테스트 호출
+                    # 실제 API 호출 테스트
                     try:
-                        test_model.generate_content("test")
+                        test_response = test_model.generate_content("test")
                         ai_model = test_model
                         logger.info(f"제안서 생성을 위한 Gemini 모델 초기화: {model_name}")
                         break
                     except Exception as api_error:
-                        logger.warning(f"모델 {model_name} API 호출 실패: {api_error}")
+                        error_msg = str(api_error)
+                        logger.warning(f"모델 {model_name} API 호출 실패: {error_msg}")
+                        if "404" in error_msg or "not found" in error_msg.lower():
+                            continue
                         continue
                 except Exception as e:
                     logger.warning(f"모델 {model_name} 초기화 실패: {e}")
